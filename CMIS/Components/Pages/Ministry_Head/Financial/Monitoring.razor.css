@@ -1,0 +1,173 @@
+/* =============================================
+   MONITORING PAGE — Scoped Styles
+   ============================================= */
+
+.page-heading { margin-bottom: 1.5rem; }
+.page-title { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.65rem; color: #0d2137; margin: 0 0 0.3rem; }
+.page-subtitle { font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #6b7c93; margin: 0; }
+
+/* Tab bar */
+.tab-bar { display: flex; gap: 0; border-bottom: 2px solid #e8ecf1; margin-bottom: 1.5rem; }
+.tab { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 1.1rem; font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600; color: #6b7c93; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; white-space: nowrap; }
+.tab:hover { color: #0d2137; }
+.tab.active { color: #0d2137; border-bottom-color: #0d2137; }
+
+/* ---------- CARDS GRID ---------- */
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.budget-card {
+    background: #ffffff;
+    border: 1.5px dashed #c8d6e5;
+    border-radius: 14px;
+    padding: 1.35rem 1.4rem;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.budget-card:hover {
+    border-color: #1a5276;
+    box-shadow: 0 4px 16px rgba(13, 33, 55, 0.08);
+}
+
+/* Card header */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.9rem;
+}
+
+.card-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.02rem;
+    color: #0d2137;
+    margin: 0;
+}
+
+.card-check {
+    flex-shrink: 0;
+}
+
+/* Utilization */
+.utilization-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.45rem;
+}
+
+.util-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    color: #6b7c93;
+}
+
+.util-value {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #0d2137;
+}
+
+/* Progress bar */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e8ecf1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #27ae60, #2ecc71);
+    border-radius: 4px;
+    transition: width 0.6s ease;
+}
+
+/* Amounts row */
+.amounts-row {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 1rem;
+}
+
+.amount-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.amount-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #8e99a4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.amount-value {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 1.15rem;
+    color: #0d2137;
+}
+
+/* Remaining balance box */
+.remaining-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    border: 1px solid #e8ecf1;
+    border-radius: 8px;
+}
+
+.remaining-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: #8e99a4;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.remaining-value {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.4rem;
+    color: #0d2137;
+}
+
+/* Operations cards — shorter, no amounts/remaining */
+.ops-card {
+    border-style: solid;
+    border-color: #e8ecf1;
+}
+
+.ops-card .progress-bar {
+    margin-bottom: 0;
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 1024px) {
+    .cards-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .cards-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .page-title { font-size: 1.35rem; }
+}

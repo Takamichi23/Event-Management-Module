@@ -1,0 +1,112 @@
+@page "/ministry-head/financial/monitoring"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<PageTitle>Monitoring — CMIS Portal</PageTitle>
+
+<!-- Page Heading -->
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/ministry-head/financial/proposals" class="tab" id="tab-proposals">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Budget Proposals
+    </a>
+    <a href="/ministry-head/financial/transactions" class="tab" id="tab-transactions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Transactions
+    </a>
+    <a href="/ministry-head/financial/monitoring" class="tab active" id="tab-monitoring">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Monitoring
+    </a>
+    <a href="/ministry-head/financial/reports" class="tab" id="tab-reports">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+    </a>
+</div>
+
+<!-- Ministry Budget Cards -->
+@{
+    var ministryAllocations = allocations.Where(a => a.Category == "Ministry").ToList();
+    var operationsAllocations = allocations.Where(a => a.Category == "Operations").ToList();
+}
+
+<div class="cards-grid">
+    @foreach (var a in ministryAllocations)
+    {
+        <div class="budget-card">
+            <div class="card-header">
+                <h3 class="card-title">@a.Name</h3>
+                <div class="card-check">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                </div>
+            </div>
+            <div class="utilization-row">
+                <span class="util-label">Utilization</span>
+                <span class="util-value">@a.Utilization.ToString("F1")%</span>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: @a.Utilization.ToString("F1")%"></div>
+            </div>
+            <div class="amounts-row">
+                <div class="amount-col">
+                    <span class="amount-label">ALLOCATED</span>
+                    <span class="amount-value">$@a.Allocated.ToString("N0")</span>
+                </div>
+                <div class="amount-col">
+                    <span class="amount-label">SPENT</span>
+                    <span class="amount-value">$@a.Spent.ToString("N0")</span>
+                </div>
+            </div>
+            <div class="remaining-box">
+                <span class="remaining-label">REMAINING BALANCE</span>
+                <span class="remaining-value">$@a.RemainingBalance.ToString("N0")</span>
+            </div>
+        </div>
+    }
+</div>
+
+<!-- Operations Cards -->
+@if (operationsAllocations.Any())
+{
+    <div class="cards-grid ops-grid">
+        @foreach (var a in operationsAllocations)
+        {
+            <div class="budget-card ops-card">
+                <div class="card-header">
+                    <h3 class="card-title">@a.Name</h3>
+                    <div class="card-check">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                </div>
+                <div class="utilization-row">
+                    <span class="util-label">Utilization</span>
+                    <span class="util-value">@a.Utilization.ToString("F1")%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: @a.Utilization.ToString("F1")%"></div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<BudgetAllocation> allocations = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        allocations = await Db.BudgetAllocations
+            .OrderBy(a => a.Category)
+            .ThenBy(a => a.Name)
+            .ToListAsync();
+    }
+}

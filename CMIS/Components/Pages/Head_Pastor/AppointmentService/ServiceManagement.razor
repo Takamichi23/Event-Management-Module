@@ -1,0 +1,1049 @@
+@page "/head-pastor/services"
+@layout CMIS.Components.Layout.DashboardLayout
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text
+
+<PageTitle>Service Management — CMIS Portal</PageTitle>
+<HeadContent>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</HeadContent>
+
+<div class="svc-mgmt">
+
+    <!-- STATS ROW -->
+    <div class="stats-row">
+        <div class="stat-card stat-inprogress">
+            <div class="stat-icon"><i class="fas fa-spinner"></i></div>
+            <div><span class="stat-num">@AllServices.Count(s => s.Status == "in progress")</span><span class="stat-label">In Progress</span></div>
+        </div>
+        <div class="stat-card stat-scheduled">
+            <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+            <div><span class="stat-num">@AllServices.Count(s => s.Status == "scheduled")</span><span class="stat-label">Scheduled</span></div>
+        </div>
+        <div class="stat-card stat-rescheduled">
+            <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div><span class="stat-num">@AllServices.Count(s => s.Status == "rescheduled")</span><span class="stat-label">Rescheduled</span></div>
+        </div>
+        <div class="stat-card stat-cancelled">
+            <div class="stat-icon"><i class="fas fa-ban"></i></div>
+            <div><span class="stat-num">@AllServices.Count(s => s.Status == "cancelled")</span><span class="stat-label">Cancelled</span></div>
+        </div>
+        <div class="stat-card stat-complete">
+            <div class="stat-icon"><i class="fas fa-check-double"></i></div>
+            <div><span class="stat-num">@AllServices.Count(s => s.Status == "complete")</span><span class="stat-label">Complete</span></div>
+        </div>
+    </div>
+
+    <!-- TABLE CARD -->
+    <div class="glass-card">
+        <div class="panel-header">
+            <h3><i class="fas fa-concierge-bell"></i> Services</h3>
+            <button class="btn-add" @onclick="OpenAddModal"><i class="fas fa-plus"></i> Add Service</button>
+        </div>
+
+        <!-- TYPE FILTERS -->
+        <div class="filter-bar">
+            @foreach (var t in new[] { "all","baptism","counsel","wedding","child dedication","funeral" })
+            {
+                <button class="filter-tab @(activeType==t?"active":"")" @onclick="()=>{ activeType=t; }">
+                    <i class="@GetServiceIcon(t)"></i> @(t=="all"?"All":FormatType(t))
+                    <span class="tab-count">@(t=="all"?AllServices.Count:AllServices.Count(s=>s.Type==t))</span>
+                </button>
+            }
+            <div class="filter-divider"></div>
+            @foreach (var s in new[] { "all","in progress","scheduled","rescheduled","cancelled","complete" })
+            {
+                <button class="filter-tab @(activeStatus==s?"active":"")" @onclick="()=>{ activeStatus=s; }">
+                    @(s=="all"?"All Status":FormatStatus(s))
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(loadError))
+        {
+            <div class="error-banner"><i class="fas fa-exclamation-triangle"></i> @loadError</div>
+        }
+        else if (isLoading)
+        {
+            <div class="loading-state"><div class="spinner"></div><p>Loading services...</p></div>
+        }
+        else if (FilteredServices.Count == 0)
+        {
+            <div class="empty-mini"><i class="fas fa-folder-open"></i><p>No services found.</p></div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="svc-table">
+                    <thead><tr>
+                        <th>ID</th><th>Type</th><th>Person / Subject</th>
+                        <th>Date</th><th>Time</th><th>Status</th>
+                        <th style="text-align:right;">Actions</th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var svc in FilteredServices)
+                        {
+                            <tr class="svc-row" @onclick="()=>OpenDetail(svc)">
+                                <td class="id-cell">#@svc.Id</td>
+                                <td><div class="svc-badge"><i class="@GetServiceIcon(svc.Type)"></i> @FormatType(svc.Type)</div></td>
+                                <td>@svc.PersonName</td>
+                                <td>@FormatDate(svc.ImplementationDate)</td>
+                                <td style="font-size:.78rem;color:#7f8c9b;">@svc.StartTime - @svc.EndTime</td>
+                                <td><span class="status-pill @GetStatusClass(svc.Status)">@FormatStatus(svc.Status)</span></td>
+                                <td style="text-align:right;">
+                                    <button class="btn-icon-only" @onclick:stopPropagation="true" @onclick="()=>LoadServiceForEdit(svc)" title="Edit">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- ADD SERVICE MODAL -->
+@if (showAddModal)
+{
+    <div class="modal-overlay" @onclick="CloseAdd">
+        <div class="modal-box wide" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span class="modal-title">
+                    <i class="fas fa-plus-circle"></i>
+                    @(addStep == 1 ? "Choose Service Type" : $"New {FormatType(selectedType ?? "")} Service")
+                </span>
+                <button class="modal-close" @onclick="CloseAdd"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+
+                @if (!string.IsNullOrEmpty(formMsg))
+                {
+                    <div class="action-msg @(formSuccess?"success":"error")">
+                        <i class="fas @(formSuccess?"fa-check-circle":"fa-exclamation-circle")"></i> @formMsg
+                    </div>
+                }
+
+                @if (addStep == 1)
+                {
+                    <div class="type-grid">
+                        @foreach (var tc in TypeCards)
+                        {
+                            <div class="type-card tc-@tc.Key" @onclick="()=>SelectType(tc.Key)">
+                                <div class="type-icon"><i class="@tc.Value.Icon"></i></div>
+                                <div class="type-name">@tc.Value.Name</div>
+                                <div class="type-desc">@tc.Value.Desc</div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- FORM STEP -->
+                    @if (selectedType == "baptism")    { @BaptismForm() }
+                    @if (selectedType == "counsel")    { @CounselForm() }
+                    @if (selectedType == "wedding")    { @WeddingForm() }
+                    @if (selectedType == "child dedication") { @ChildDedicationForm() }
+                    @if (selectedType == "funeral")    { @FuneralForm() }
+
+                    @if (!IsFormValid()) {
+                        <div class="action-msg error" style="margin-top:1.5rem; margin-bottom:0;">
+                            <i class="fas fa-exclamation-triangle"></i> @GetFormValidationMessage()
+                        </div>
+                    }
+                    <div class="action-bar" style="margin-top:1rem;">
+                        <button class="btn-action btn-back" @onclick="()=>addStep=1"><i class="fas fa-arrow-left"></i> Back</button>
+                        <div style="flex:1"></div>
+                        <button class="btn-action btn-submit" disabled="@(!IsFormValid() || isSubmitting)" @onclick="SubmitForm">
+                            @if (isSubmitting) { <span class="spinner-sm"></span> <span>Saving...</span> }
+                            else { <i class="fas fa-save"></i> <span>@(editingServiceId.HasValue ? "Update Service" : "Save Service")</span> }
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- DETAIL MODAL -->
+@if (showDetail && detailSvc != null)
+{
+    <div class="modal-overlay" @onclick="()=>showDetail=false">
+        <div class="modal-box" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <span class="modal-title"><i class="@GetServiceIcon(detailSvc.Type)"></i> @FormatType(detailSvc.Type) #@detailSvc.Id</span>
+                <button class="modal-close" @onclick="()=>showDetail=false"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-grid">
+                    <div class="detail-row"><span class="d-label"><i class="fas fa-user"></i> Person</span><span class="d-value">@(string.IsNullOrWhiteSpace(detailSvc.PersonName) ? "None" : detailSvc.PersonName)</span></div>
+                    <div class="detail-row"><span class="d-label"><i class="fas fa-calendar-day"></i> Date</span><span class="d-value">@FormatDate(detailSvc.ImplementationDate)</span></div>
+                    <div class="detail-row"><span class="d-label"><i class="far fa-clock"></i> Time</span><span class="d-value">@(string.IsNullOrWhiteSpace(detailSvc.StartTime) ? "Unassigned" : $"{detailSvc.StartTime} – {detailSvc.EndTime}")</span></div>
+                    <div class="detail-row"><span class="d-label"><i class="fas fa-map-marker-alt"></i> Venue</span><span class="d-value">@(detailSvc.Extra.ContainsKey("venue") && !string.IsNullOrWhiteSpace(detailSvc.Extra["venue"]) ? detailSvc.Extra["venue"] : "Unassigned")</span></div>
+                    <div class="detail-divider"></div>
+                    <div class="detail-row"><span class="d-label"><i class="fas fa-info-circle"></i> Status</span><span class="d-value"><span class="status-pill @GetStatusClass(detailSvc.Status)">@FormatStatus(detailSvc.Status)</span></span></div>
+                    @foreach (var kv in detailSvc.Extra.Where(k => k.Key != "venue"))
+                    {
+                        <div class="detail-row">
+                            <span class="d-label"><i class="fas fa-tag"></i> @FormatKey(kv.Key)</span>
+                            <span class="d-value">@(string.IsNullOrWhiteSpace(kv.Value) ? "None" : kv.Value)</span>
+                        </div>
+                    }
+                </div>
+                <div style="padding:1.5rem 2rem 1.5rem; text-align:right;">
+                    <button class="btn-action btn-submit" @onclick="()=>EditFromDetail(detailSvc)" style="font-size:.85rem;"><i class="fas fa-edit"></i> Edit Service</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    const string Api = "http://localhost:5096";
+    const int PastorId = 3;
+
+    string activeType = "all", activeStatus = "all";
+    bool isLoading = true, showAddModal, showDetail, isSubmitting, formSuccess;
+    string? loadError, formMsg, selectedType;
+    int addStep = 1;
+    ServiceItem? detailSvc;
+    int? editingServiceId = null;
+
+    List<ServiceItem> AllServices = new();
+    List<ServiceItem> AllAppointments = new();
+    List<ProfileDto> profileResults = new();
+    bool profileSearching;
+    System.Threading.CancellationTokenSource? _cts;
+
+    // ── Form models ──
+    ProfileDto? pickedProfile, pickedChild, pickedDeceased, pickedKin;
+    bool showDropdownFor_main, showDropdownFor_child, showDropdownFor_deceased, showDropdownFor_kin;
+    string q_main="", q_child="", q_deceased="", q_kin="";
+    bool showNewProfile_main, showNewProfile_child, showNewProfile_deceased, showNewProfile_kin;
+    
+    string q_spouse="", q_w_sponsor="", q_parent="", q_cd_sponsor="";
+    bool showDrop_spouse, showDrop_w_sponsor, showDrop_parent, showDrop_cd_sponsor;
+    bool showNew_spouse, showNew_w_sponsor, showNew_parent, showNew_cd_sponsor;
+    bool isSavingProfile;
+
+    // Baptism
+    string b_occupation="", b_venue="", b_status="in progress";
+    DateTime? b_date; TimeOnly? b_start = new TimeOnly(9, 0), b_end = new TimeOnly(10, 0);
+    // Counsel
+    string c_counselFor="", c_status="in progress";
+    DateTime? c_date; TimeOnly? c_start = new TimeOnly(9, 0), c_end = new TimeOnly(10, 0);
+    // Wedding
+    string w_venue="", w_type="Church", w_status="in progress";
+    DateTime? w_date; TimeOnly? w_start = new TimeOnly(9, 0), w_end = new TimeOnly(10, 0);
+    bool w_cert, w_rec, w_aff;
+    List<WeddingProfileUI> w_spouses = new();
+    List<ProfileDto> w_sponsors = new();
+    // Child Dedication
+    string cd_placeOfBirth="", cd_weight="", cd_mun="", cd_prov="", cd_country="", cd_venue="", cd_status="in progress";
+    DateTime? cd_date, cd_parentsDate; TimeOnly? cd_start = new TimeOnly(9, 0), cd_end = new TimeOnly(10, 0);
+    bool cd_birthCert;
+    List<ParentProfileUI> cd_parents = new();
+    List<ProfileDto> cd_sponsors = new();
+    // Funeral
+    string f_kinRel="", f_cause="", f_psa="", f_venue="", f_status="in progress";
+    DateTime? f_date, f_dateOfDeath; TimeOnly? f_start = new TimeOnly(9, 0), f_end = new TimeOnly(10, 0);
+    // New Profile
+    string np_first="", np_mid="", np_last="", np_sex="Male", np_contact="", np_addr="", np_street="", np_mun="", np_prov="";
+    DateTime? np_birth;
+    int np_churchId = 1; bool np_member;
+
+    record TypeInfo(string Icon, string Name, string Desc);
+    Dictionary<string, TypeInfo> TypeCards = new() {
+        ["baptism"]         = new("fas fa-water",    "Baptism",          "Water baptism service"),
+        ["counsel"]         = new("fas fa-comments", "Counsel",          "Pastoral counseling"),
+        ["wedding"]         = new("fas fa-heart",    "Wedding",          "Wedding ceremony"),
+        ["child dedication"]= new("fas fa-baby",     "Child Dedication", "Child dedication service"),
+        ["funeral"]         = new("fas fa-cross",    "Funeral",          "Funeral service"),
+    };
+
+    List<ServiceItem> FilteredServices => AllServices
+        .Where(s => (activeType == "all" || s.Type == activeType) &&
+                    (activeStatus == "all" || s.Status == activeStatus))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    async Task LoadAll() {
+        isLoading = true; loadError = null; StateHasChanged();
+        try {
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var all = new List<ServiceItem>();
+            // Baptisms
+            var bList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/Baptism/all", opts) ?? new();
+            foreach (var b in bList) all.Add(new ServiceItem {
+                Id = b.GetProperty("baptismId").GetInt32(), Type = "baptism",
+                PersonName = TryStr(b,"personName"), Status = TryStr(b,"status").ToLower(),
+                ImplementationDate = TryStr(b,"implementationDate"), StartTime = TryStr(b,"startTime"), EndTime = TryStr(b,"endTime"),
+                Extra = new() { ["venue"]=TryStr(b,"venue"), ["occupation"]=TryStr(b,"occupation") }
+            });
+            // Counsels
+            var cList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/Counsel/all", opts) ?? new();
+            foreach (var c in cList) all.Add(new ServiceItem {
+                Id = c.GetProperty("counselId").GetInt32(), Type = "counsel",
+                PersonName = TryStr(c,"personName"), Status = TryStr(c,"status").ToLower(),
+                ImplementationDate = TryStr(c,"implementationDate"), StartTime = TryStr(c,"startTime"), EndTime = TryStr(c,"endTime"),
+                Extra = new() { ["counsel for"]=TryStr(c,"counselFor") }
+            });
+            // Weddings
+            var wList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/Wedding/all", opts) ?? new();
+            foreach (var w in wList) all.Add(new ServiceItem {
+                Id = w.GetProperty("weddingId").GetInt32(), Type = "wedding",
+                PersonName = "Wedding Ceremony", Status = TryStr(w,"status").ToLower(),
+                ImplementationDate = TryStr(w,"implementationDate"), StartTime = TryStr(w,"startTime"), EndTime = TryStr(w,"endTime"),
+                Extra = new() { ["venue"]=TryStr(w,"venue"), ["marriage type"]=TryStr(w,"marriageType") }
+            });
+            // Child Dedications
+            var cdList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/ChildDedication/all", opts) ?? new();
+            foreach (var cd in cdList) all.Add(new ServiceItem {
+                Id = cd.GetProperty("childDedicationId").GetInt32(), Type = "child dedication",
+                PersonName = TryStr(cd,"childName"), Status = TryStr(cd,"status").ToLower(),
+                ImplementationDate = TryStr(cd,"implementationDate"), StartTime = TryStr(cd,"startTime"), EndTime = TryStr(cd,"endTime"),
+                Extra = new() { ["venue"]=TryStr(cd,"venue"), ["place of birth"]=TryStr(cd,"childPlaceOfBirth") }
+            });
+            // Funerals
+            var fList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/Funeral/all", opts) ?? new();
+            foreach (var f in fList) all.Add(new ServiceItem {
+                Id = f.GetProperty("funeralId").GetInt32(), Type = "funeral",
+                PersonName = TryStr(f,"deceasedName"), Status = TryStr(f,"status").ToLower(),
+                ImplementationDate = TryStr(f,"implementationDate"), StartTime = TryStr(f,"startTime"), EndTime = TryStr(f,"endTime"),
+                Extra = new() { ["venue"]=TryStr(f,"venue"), ["cause of death"]=TryStr(f,"causeOfDeath"), ["kin"]=TryStr(f,"kinName") }
+            });
+            AllServices = all;
+
+            // Fetch Appointments for conflict checking
+            var aList = await http.GetFromJsonAsync<List<JsonElement>>($"{Api}/Appointment/assigned/{PastorId}", opts) ?? new();
+            AllAppointments.Clear();
+            foreach (var a in aList) {
+                AllAppointments.Add(new ServiceItem {
+                    Status = TryStr(a,"status").ToLower(),
+                    ImplementationDate = TryStr(a,"date"),
+                    StartTime = TryStr(a,"startTime"),
+                    EndTime = TryStr(a,"endTime")
+                });
+            }
+        } catch (Exception ex) { loadError = $"Could not load services. ({ex.Message})"; }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    string TryStr(JsonElement el, string key) {
+        try { return el.TryGetProperty(key, out var v) ? (v.ValueKind == JsonValueKind.Null ? "" : v.GetString() ?? "") : ""; }
+        catch { return ""; }
+    }
+
+    void OpenAddModal() { showAddModal=true; addStep=1; formMsg=null; editingServiceId=null; ResetForm(); }
+    void CloseAdd() { showAddModal=false; formMsg=null; editingServiceId=null; }
+    void SelectType(string t) { selectedType=t; addStep=2; formMsg=null; }
+    void OpenDetail(ServiceItem s) { detailSvc=s; showDetail=true; }
+
+    async Task EditFromDetail(ServiceItem s) {
+        showDetail=false;
+        await LoadServiceForEdit(s);
+    }
+
+    async Task LoadServiceForEdit(ServiceItem svc) {
+        ResetForm();
+        editingServiceId = svc.Id;
+        selectedType = svc.Type;
+        showAddModal = true; addStep = 2; formMsg = null;
+        StateHasChanged();
+        try {
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            string endpoint = svc.Type switch {
+                "baptism" => $"{Api}/Baptism/{svc.Id}",
+                "counsel" => $"{Api}/Counsel/{svc.Id}",
+                "wedding" => $"{Api}/Wedding/{svc.Id}",
+                "child dedication" => $"{Api}/ChildDedication/{svc.Id}",
+                "funeral" => $"{Api}/Funeral/{svc.Id}",
+                _ => ""
+            };
+            var json = await http.GetFromJsonAsync<JsonElement>(endpoint, opts);
+            switch(svc.Type) {
+                case "baptism":
+                    pickedProfile = new ProfileDto { ProfileId=json.GetProperty("profileId").GetInt32(), FirstName=TryStr(json,"profileFirstName"), MiddleName=TryStr(json,"profileMiddleName"), LastName=TryStr(json,"profileLastName"), Sex=TryStr(json,"profileSex"), ContactNumber=TryStr(json,"profileContact"), BirthDate=TryStr(json,"profileBirthDate"), ProfileStatus=TryStr(json,"profileStatus") };
+                    b_occupation=TryStr(json,"occupation"); b_venue=TryStr(json,"venue"); b_status=TryStr(json,"status").ToLower();
+                    if (DateTime.TryParse(TryStr(json,"implementationDate"), out var bd)) b_date=bd;
+                    if (TimeOnly.TryParse(TryStr(json,"startTime"), out var bs)) b_start=bs;
+                    if (TimeOnly.TryParse(TryStr(json,"endTime"), out var be)) b_end=be;
+                    break;
+                case "counsel":
+                    pickedProfile = new ProfileDto { ProfileId=json.GetProperty("profileId").GetInt32(), FirstName=TryStr(json,"profileFirstName"), MiddleName=TryStr(json,"profileMiddleName"), LastName=TryStr(json,"profileLastName"), Sex=TryStr(json,"profileSex"), ContactNumber=TryStr(json,"profileContact"), BirthDate=TryStr(json,"profileBirthDate"), ProfileStatus=TryStr(json,"profileStatus") };
+                    c_counselFor=TryStr(json,"counselFor"); c_status=TryStr(json,"status").ToLower();
+                    if (DateTime.TryParse(TryStr(json,"implementationDate"), out var cd2)) c_date=cd2;
+                    if (TimeOnly.TryParse(TryStr(json,"startTime"), out var cs)) c_start=cs;
+                    if (TimeOnly.TryParse(TryStr(json,"endTime"), out var ce)) c_end=ce;
+                    break;
+                case "wedding":
+                    w_venue=TryStr(json,"venue"); w_type=TryStr(json,"marriageType"); w_status=TryStr(json,"status").ToLower();
+                    w_cert=json.TryGetProperty("marriageCert", out var mc) && mc.ValueKind==JsonValueKind.True;
+                    w_rec=json.TryGetProperty("recommendationLetter", out var rl) && rl.ValueKind==JsonValueKind.True;
+                    w_aff=json.TryGetProperty("affidavit", out var af) && af.ValueKind==JsonValueKind.True;
+                    if (DateTime.TryParse(TryStr(json,"implementationDate"), out var wd)) w_date=wd;
+                    if (TimeOnly.TryParse(TryStr(json,"startTime"), out var ws)) w_start=ws;
+                    if (TimeOnly.TryParse(TryStr(json,"endTime"), out var we)) w_end=we;
+                    if (json.TryGetProperty("weddingProfiles", out var wps) && wps.ValueKind==JsonValueKind.Array) {
+                        foreach(var wp in wps.EnumerateArray()) {
+                            w_spouses.Add(new WeddingProfileUI {
+                                Profile = new ProfileDto { ProfileId=wp.GetProperty("profileId").GetInt32(), FirstName=TryStr(wp,"profileFirstName"), MiddleName=TryStr(wp,"profileMiddleName"), LastName=TryStr(wp,"profileLastName"), Sex=TryStr(wp,"profileSex"), ContactNumber=TryStr(wp,"profileContact"), BirthDate=TryStr(wp,"profileBirthDate"), ProfileStatus=TryStr(wp,"profileStatus") },
+                                BirthCert=wp.TryGetProperty("birthCert", out var bc2) && bc2.ValueKind==JsonValueKind.True,
+                                Occupation=TryStr(wp,"occupation"), Religion=TryStr(wp,"religion"),
+                                Cenomar=wp.TryGetProperty("cenomar", out var cn) && cn.ValueKind==JsonValueKind.True
+                            });
+                        }
+                    }
+                    if (json.TryGetProperty("weddingWitnesses", out var wws) && wws.ValueKind==JsonValueKind.Array) {
+                        foreach(var ww in wws.EnumerateArray()) {
+                            w_sponsors.Add(new ProfileDto { ProfileId=ww.GetProperty("profileId").GetInt32(), FirstName=TryStr(ww,"profileFirstName"), MiddleName=TryStr(ww,"profileMiddleName"), LastName=TryStr(ww,"profileLastName"), Sex=TryStr(ww,"profileSex"), ContactNumber=TryStr(ww,"profileContact"), BirthDate=TryStr(ww,"profileBirthDate"), ProfileStatus=TryStr(ww,"profileStatus") });
+                        }
+                    }
+                    break;
+                case "child dedication":
+                    pickedChild = new ProfileDto { ProfileId=json.GetProperty("childProfileId").GetInt32(), FirstName=TryStr(json,"childFirstName"), MiddleName=TryStr(json,"childMiddleName"), LastName=TryStr(json,"childLastName"), Sex=TryStr(json,"childSex"), ContactNumber=TryStr(json,"childContact"), BirthDate=TryStr(json,"childBirthDate"), ProfileStatus=TryStr(json,"childStatus") };
+                    cd_placeOfBirth=TryStr(json,"childPlaceOfBirth"); cd_venue=TryStr(json,"venue"); cd_status=TryStr(json,"status").ToLower();
+                    cd_birthCert=json.TryGetProperty("birthCert", out var bc3) && bc3.ValueKind==JsonValueKind.True;
+                    if (json.TryGetProperty("childWeightAtBirth", out var cwt)) cd_weight=cwt.GetDecimal().ToString();
+                    if (DateTime.TryParse(TryStr(json,"parentsMarriageDate"), out var pmd)) cd_parentsDate=pmd;
+                    cd_mun=TryStr(json,"parentsMarriagePlaceMunicipality"); cd_prov=TryStr(json,"parentsMarriagePlaceProvince"); cd_country=TryStr(json,"parentsMarriagePlaceCountry");
+                    if (DateTime.TryParse(TryStr(json,"implementationDate"), out var cdd)) cd_date=cdd;
+                    if (TimeOnly.TryParse(TryStr(json,"startTime"), out var cds)) cd_start=cds;
+                    if (TimeOnly.TryParse(TryStr(json,"endTime"), out var cde)) cd_end=cde;
+                    if (json.TryGetProperty("parentProfiles", out var pps) && pps.ValueKind==JsonValueKind.Array) {
+                        foreach(var pp in pps.EnumerateArray()) {
+                            cd_parents.Add(new ParentProfileUI {
+                                Profile = new ProfileDto { ProfileId=pp.GetProperty("profileId").GetInt32(), FirstName=TryStr(pp,"profileFirstName"), MiddleName=TryStr(pp,"profileMiddleName"), LastName=TryStr(pp,"profileLastName"), Sex=TryStr(pp,"profileSex"), ContactNumber=TryStr(pp,"profileContact"), BirthDate=TryStr(pp,"profileBirthDate"), ProfileStatus=TryStr(pp,"profileStatus") },
+                                Citizenship=TryStr(pp,"citizenship"), Religion=TryStr(pp,"religion"),
+                                TotalNumOfChildren=pp.TryGetProperty("totalNumOfChildren", out var tnc) ? tnc.GetInt32() : 0
+                            });
+                        }
+                    }
+                    if (json.TryGetProperty("witnesses", out var cdws) && cdws.ValueKind==JsonValueKind.Array) {
+                        foreach(var cw in cdws.EnumerateArray()) {
+                            cd_sponsors.Add(new ProfileDto { ProfileId=cw.GetProperty("profileId").GetInt32(), FirstName=TryStr(cw,"profileFirstName"), MiddleName=TryStr(cw,"profileMiddleName"), LastName=TryStr(cw,"profileLastName"), Sex=TryStr(cw,"profileSex"), ContactNumber=TryStr(cw,"profileContact"), BirthDate=TryStr(cw,"profileBirthDate"), ProfileStatus=TryStr(cw,"profileStatus") });
+                        }
+                    }
+                    break;
+                case "funeral":
+                    pickedDeceased = new ProfileDto { ProfileId=json.GetProperty("deceasedProfileId").GetInt32(), FirstName=TryStr(json,"deceasedFirstName"), MiddleName=TryStr(json,"deceasedMiddleName"), LastName=TryStr(json,"deceasedLastName"), Sex=TryStr(json,"deceasedSex"), ContactNumber=TryStr(json,"deceasedContact"), BirthDate=TryStr(json,"deceasedBirthDate"), ProfileStatus=TryStr(json,"deceasedStatus") };
+                    pickedKin = new ProfileDto { ProfileId=json.GetProperty("kinProfileId").GetInt32(), FirstName=TryStr(json,"kinFirstName"), MiddleName=TryStr(json,"kinMiddleName"), LastName=TryStr(json,"kinLastName"), Sex=TryStr(json,"kinSex"), ContactNumber=TryStr(json,"kinContact"), BirthDate=TryStr(json,"kinBirthDate"), ProfileStatus=TryStr(json,"kinStatus") };
+                    f_kinRel=TryStr(json,"kinRelationshipToDeceased"); f_cause=TryStr(json,"causeOfDeath"); f_psa=TryStr(json,"psaDeathCertNo"); f_venue=TryStr(json,"venue"); f_status=TryStr(json,"status").ToLower();
+                    if (DateTime.TryParse(TryStr(json,"dateOfDeath"), out var fdd)) f_dateOfDeath=fdd;
+                    if (DateTime.TryParse(TryStr(json,"implementationDate"), out var fd)) f_date=fd;
+                    if (TimeOnly.TryParse(TryStr(json,"startTime"), out var fs)) f_start=fs;
+                    if (TimeOnly.TryParse(TryStr(json,"endTime"), out var fe)) f_end=fe;
+                    break;
+            }
+        } catch (Exception ex) { formMsg=$"Failed to load service data: {ex.Message}"; formSuccess=false; }
+        StateHasChanged();
+    }
+
+    void ResetForm() {
+        pickedProfile=null; pickedChild=null; pickedDeceased=null; pickedKin=null;
+        w_spouses.Clear(); w_sponsors.Clear(); cd_parents.Clear(); cd_sponsors.Clear();
+        q_main=""; q_child=""; q_deceased=""; q_kin="";
+        q_spouse=""; q_w_sponsor=""; q_parent=""; q_cd_sponsor="";
+        showDropdownFor_main=false; showDropdownFor_child=false; showDropdownFor_deceased=false; showDropdownFor_kin=false;
+        showDrop_spouse=false; showDrop_w_sponsor=false; showDrop_parent=false; showDrop_cd_sponsor=false;
+        showNewProfile_main=false; showNewProfile_child=false; showNewProfile_deceased=false; showNewProfile_kin=false;
+        showNew_spouse=false; showNew_w_sponsor=false; showNew_parent=false; showNew_cd_sponsor=false;
+        b_occupation=""; b_venue=""; b_date=null; b_start=new TimeOnly(9,0); b_end=new TimeOnly(10,0); b_status="in progress";
+        c_counselFor=""; c_date=null; c_start=new TimeOnly(9,0); c_end=new TimeOnly(10,0); c_status="in progress";
+        w_venue=""; w_type="Church"; w_date=null; w_start=new TimeOnly(9,0); w_end=new TimeOnly(10,0); w_status="in progress"; w_cert=false; w_rec=false; w_aff=false;
+        cd_placeOfBirth=""; cd_weight=""; cd_parentsDate=null; cd_mun=""; cd_prov=""; cd_country=""; cd_venue=""; cd_date=null; cd_start=new TimeOnly(9,0); cd_end=new TimeOnly(10,0); cd_status="in progress"; cd_birthCert=false;
+        f_kinRel=""; f_dateOfDeath=null; f_cause=""; f_psa=""; f_venue=""; f_date=null; f_start=new TimeOnly(9,0); f_end=new TimeOnly(10,0); f_status="in progress";
+        ResetNewProfileForm();
+    }
+
+    void ResetNewProfileForm() { np_first=""; np_mid=""; np_last=""; np_sex="Male"; np_birth=null; np_contact=""; np_addr=""; np_street=""; np_mun=""; np_prov=""; np_churchId=1; np_member=false; }
+
+    async Task SearchProfiles(string q, string slot) {
+        if (string.IsNullOrWhiteSpace(q)) { profileResults=new(); return; }
+        _cts?.Cancel(); _cts = new();
+        try {
+            await Task.Delay(300, _cts.Token);
+            profileSearching = true; StateHasChanged();
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            profileResults = await http.GetFromJsonAsync<List<ProfileDto>>($"{Api}/Profile/search?q={Uri.EscapeDataString(q)}", opts) ?? new();
+        } catch (TaskCanceledException) { } catch { profileResults=new(); }
+        finally { profileSearching=false; StateHasChanged(); }
+    }
+
+    void PickProfile(ProfileDto p, string slot) {
+        switch(slot) {
+            case "main":     pickedProfile=p; showDropdownFor_main=false; q_main=""; break;
+            case "child":    pickedChild=p; showDropdownFor_child=false; q_child=""; break;
+            case "deceased": pickedDeceased=p; showDropdownFor_deceased=false; q_deceased=""; break;
+            case "kin":      pickedKin=p; showDropdownFor_kin=false; q_kin=""; break;
+            case "spouse":   w_spouses.Add(new WeddingProfileUI{Profile=p}); showDrop_spouse=false; q_spouse=""; break;
+            case "w_sponsor":w_sponsors.Add(p); showDrop_w_sponsor=false; q_w_sponsor=""; break;
+            case "parent":   cd_parents.Add(new ParentProfileUI{Profile=p}); showDrop_parent=false; q_parent=""; break;
+            case "cd_sponsor":cd_sponsors.Add(p); showDrop_cd_sponsor=false; q_cd_sponsor=""; break;
+        }
+        profileResults=new();
+    }
+
+    void ClearPick(string slot) {
+        switch(slot) {
+            case "main":     pickedProfile=null; break;
+            case "child":    pickedChild=null; break;
+            case "deceased": pickedDeceased=null; break;
+            case "kin":      pickedKin=null; break;
+        }
+    }
+
+    async Task SaveNewProfile(string slot) {
+        if (string.IsNullOrWhiteSpace(np_first) || string.IsNullOrWhiteSpace(np_last)) {
+            formMsg="First and Last name are required."; formSuccess=false; return;
+        }
+        isSavingProfile=true; StateHasChanged();
+        try {
+            using var http = new HttpClient();
+            var dto = new { firstName=np_first, middleName=np_mid, lastName=np_last, sex=np_sex,
+                birthDate=np_birth?.ToString("yyyy-MM-dd"), contactNumber=np_contact,
+                address=np_addr, street=np_street, municipality=np_mun, province=np_prov,
+                churchId=np_churchId, isMember=np_member, profileStatus="Active" };
+            var resp = await http.PostAsJsonAsync($"{Api}/Profile/create", dto);
+            if (resp.IsSuccessStatusCode) {
+                var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive=true };
+                var created = await resp.Content.ReadFromJsonAsync<ProfileDto>(opts);
+                if (created != null) PickProfile(created, slot);
+                ResetNewProfileForm();
+                switch(slot) {
+                    case "main": showNewProfile_main=false; break; case "child": showNewProfile_child=false; break;
+                    case "deceased": showNewProfile_deceased=false; break; case "kin": showNewProfile_kin=false; break;
+                    case "spouse": showNew_spouse=false; break; case "w_sponsor": showNew_w_sponsor=false; break;
+                    case "parent": showNew_parent=false; break; case "cd_sponsor": showNew_cd_sponsor=false; break;
+                }
+                formMsg="Profile created and selected!"; formSuccess=true;
+            } else { formMsg="Failed to create profile."; formSuccess=false; }
+        } catch (Exception ex) { formMsg=$"Error: {ex.Message}"; formSuccess=false; }
+        finally { isSavingProfile=false; StateHasChanged(); }
+    }
+
+    async Task SubmitForm() {
+        isSubmitting=true; formMsg=null; StateHasChanged();
+        try {
+            using var http = new HttpClient();
+            HttpResponseMessage resp;
+            switch(selectedType) {
+                case "baptism":
+                    if (pickedProfile==null) { formMsg="Please select a person."; formSuccess=false; return; }
+                    if ((b_status == "scheduled" || b_status == "rescheduled") && IsScheduleConflict(b_date, b_start, b_end)) {
+                        formMsg="Conflict detected! This time slot overlaps with an existing scheduled/rescheduled service or appointment."; formSuccess=false; return;
+                    }
+                    var bPayload = new { requesterId=PastorId, assignedToId=PastorId, profileId=pickedProfile.ProfileId,
+                        venue=b_venue, implementationDate=b_date?.ToString("yyyy-MM-dd"), startTime=b_start?.ToString("HH:mm:ss"), endTime=b_end?.ToString("HH:mm:ss"),
+                        occupation=b_occupation, status=b_status };
+                    resp = editingServiceId.HasValue
+                        ? await http.PutAsJsonAsync($"{Api}/Baptism/update/{editingServiceId}", bPayload)
+                        : await http.PostAsJsonAsync($"{Api}/Baptism/create", bPayload);
+                    break;
+                case "counsel":
+                    if (pickedProfile==null) { formMsg="Please select a person."; formSuccess=false; return; }
+                    if ((c_status == "scheduled" || c_status == "rescheduled") && IsScheduleConflict(c_date, c_start, c_end)) {
+                        formMsg="Conflict detected! This time slot overlaps with an existing scheduled/rescheduled service or appointment."; formSuccess=false; return;
+                    }
+                    var cPayload = new { requesterId=PastorId, assignedToId=PastorId, profileId=pickedProfile.ProfileId,
+                        implementationDate=c_date?.ToString("yyyy-MM-dd"), startTime=c_start?.ToString("HH:mm:ss"), endTime=c_end?.ToString("HH:mm:ss"),
+                        counselFor=c_counselFor, status=c_status };
+                    resp = editingServiceId.HasValue
+                        ? await http.PutAsJsonAsync($"{Api}/Counsel/update/{editingServiceId}", cPayload)
+                        : await http.PostAsJsonAsync($"{Api}/Counsel/create", cPayload);
+                    break;
+                case "wedding":
+                    if ((w_status == "scheduled" || w_status == "rescheduled") && IsScheduleConflict(w_date, w_start, w_end)) {
+                        formMsg="Conflict detected! This time slot overlaps with an existing scheduled/rescheduled service or appointment."; formSuccess=false; return;
+                    }
+                    var wPayload = new {
+                        requesterId=PastorId, assignedToId=PastorId, venue=w_venue, marriageType=w_type,
+                        implementationDate=w_date?.ToString("yyyy-MM-dd"), startTime=w_start?.ToString("HH:mm:ss"), endTime=w_end?.ToString("HH:mm:ss"),
+                        marriageCert=w_cert, recommendationLetter=w_rec, affidavit=w_aff, status=w_status,
+                        weddingProfiles=w_spouses.Select(s => new {
+                            profileId=s.Profile.ProfileId, birthCert=s.BirthCert, occupation=s.Occupation, religion=s.Religion, cenomar=s.Cenomar
+                        }).ToList(),
+                        weddingWitnessProfileIds=w_sponsors.Select(s => s.ProfileId).ToList()
+                    };
+                    resp = editingServiceId.HasValue
+                        ? await http.PutAsJsonAsync($"{Api}/Wedding/update/{editingServiceId}", wPayload)
+                        : await http.PostAsJsonAsync($"{Api}/Wedding/create", wPayload);
+                    break;
+                case "child dedication":
+                    if (pickedChild==null) { formMsg="Please select the child."; formSuccess=false; return; }
+                    if ((cd_status == "scheduled" || cd_status == "rescheduled") && IsScheduleConflict(cd_date, cd_start, cd_end)) {
+                        formMsg="Conflict detected! This time slot overlaps with an existing scheduled/rescheduled service or appointment."; formSuccess=false; return;
+                    }
+                    if (!decimal.TryParse(cd_weight, out var wt)) wt=0;
+                    var cdPayload = new {
+                        requesterId=PastorId, assignedToId=PastorId, childProfileId=pickedChild.ProfileId,
+                        venue=cd_venue, childPlaceOfBirth=cd_placeOfBirth, childWeightAtBirth=wt,
+                        birthCert=cd_birthCert, parentsMarriageDate=cd_parentsDate?.ToString("yyyy-MM-dd"),
+                        parentsMarriagePlaceMunicipality=cd_mun, parentsMarriagePlaceProvince=cd_prov,
+                        parentsMarriagePlaceCountry=cd_country,
+                        implementationDate=cd_date?.ToString("yyyy-MM-dd"), startTime=cd_start?.ToString("HH:mm:ss"), endTime=cd_end?.ToString("HH:mm:ss"), status=cd_status,
+                        parentProfiles=cd_parents.Select(p => new {
+                            profileId=p.Profile.ProfileId, citizenship=p.Citizenship, religion=p.Religion, totalNumOfChildren=p.TotalNumOfChildren
+                        }).ToList(),
+                        witnessProfileIds=cd_sponsors.Select(s => s.ProfileId).ToList()
+                    };
+                    resp = editingServiceId.HasValue
+                        ? await http.PutAsJsonAsync($"{Api}/ChildDedication/update/{editingServiceId}", cdPayload)
+                        : await http.PostAsJsonAsync($"{Api}/ChildDedication/create", cdPayload);
+                    break;
+                case "funeral":
+                    if (pickedDeceased==null||pickedKin==null) { formMsg="Please select deceased and kin."; formSuccess=false; return; }
+                    if ((f_status == "scheduled" || f_status == "rescheduled") && IsScheduleConflict(f_date, f_start, f_end)) {
+                        formMsg="Conflict detected! This time slot overlaps with an existing scheduled/rescheduled service or appointment."; formSuccess=false; return;
+                    }
+                    var fPayload = new {
+                        requesterId=PastorId, assignedToId=PastorId,
+                        deceasedProfileId=pickedDeceased.ProfileId, kinProfileId=pickedKin.ProfileId,
+                        kinRelationshipToDeceased=f_kinRel, dateOfDeath=f_dateOfDeath?.ToString("yyyy-MM-dd"), causeOfDeath=f_cause,
+                        psaDeathCertNo=string.IsNullOrEmpty(f_psa)?null:f_psa, venue=f_venue,
+                        implementationDate=f_date?.ToString("yyyy-MM-dd"), startTime=f_start?.ToString("HH:mm:ss"), endTime=f_end?.ToString("HH:mm:ss"), status=f_status };
+                    resp = editingServiceId.HasValue
+                        ? await http.PutAsJsonAsync($"{Api}/Funeral/update/{editingServiceId}", fPayload)
+                        : await http.PostAsJsonAsync($"{Api}/Funeral/create", fPayload);
+                    break;
+                default: return;
+            }
+            if (resp.IsSuccessStatusCode) {
+                formMsg=editingServiceId.HasValue ? "Service updated successfully!" : "Service saved successfully!"; formSuccess=true; editingServiceId=null;
+                await LoadAll(); await Task.Delay(1200); CloseAdd();
+            } else {
+                var body = await resp.Content.ReadAsStringAsync();
+                formMsg=$"Failed to save ({(int)resp.StatusCode})."; formSuccess=false;
+            }
+        } catch (Exception ex) { formMsg=$"Error: {ex.Message}"; formSuccess=false; }
+        finally { isSubmitting=false; StateHasChanged(); }
+    }
+
+    // ── Render Fragments ──
+    RenderFragment ProfilePicker(string slot, ProfileDto? picked, string q, bool showDrop, bool showNew, Action<ProfileDto> onPick, Action onClear) => __builder => {
+        if (picked != null) {
+            <div class="profile-selected-card">
+                <div class="psc-header">
+                    <span class="psc-name"><i class="fas fa-user-check"></i> @picked.FirstName @picked.MiddleName @picked.LastName <small>#@picked.ProfileId</small></span>
+                    <button class="profile-clear" @onclick="onClear"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="psc-details">
+                    <span><i class="fas fa-venus-mars"></i> @picked.Sex</span>
+                    <span><i class="fas fa-birthday-cake"></i> @(picked.BirthDate ?? "N/A")</span>
+                    <span><i class="fas fa-phone"></i> @(picked.ContactNumber ?? "N/A")</span>
+                    <span><i class="fas fa-info-circle"></i> @picked.ProfileStatus</span>
+                </div>
+            </div>
+        } else {
+            <div class="profile-picker">
+                <div class="picker-input-group">
+                    <input class="form-control" placeholder="Search by name..." value="@q"
+                        @oninput="e => HandleInput(e, slot)"
+                        @onfocus="() => HandleFocus(slot)" />
+                    <button class="btn-add-profile-side" @onclick="()=>{ SetNew(slot,true); SetDrop(slot,false); }" title="Add New Profile">
+                        <i class="fas fa-user-plus"></i>
+                    </button>
+                </div>
+                @if (showDrop) {
+                    <div class="profile-dropdown">
+                        @if (profileSearching) {
+                            <div class="profile-searching"><div class="spinner-sm" style="border-color:#ccc;border-top-color:#1a5276;"></div> Searching...</div>
+                        } else if (profileResults.Count > 0) {
+                            @foreach (var p in profileResults) {
+                                var pp=p;
+                                <div class="profile-option" @onclick="()=>{ onPick(pp); profileResults=new(); }">
+                                    <div class="profile-option-icon"><i class="fas fa-user"></i></div>
+                                    <div>
+                                        <div class="profile-option-name">@p.FirstName @p.MiddleName @p.LastName</div>
+                                        <div class="profile-option-sub">@p.Sex · #@p.ProfileId @(p.ContactNumber!=null?"· "+p.ContactNumber:"")</div>
+                                    </div>
+                                </div>
+                            }
+                        } else {
+                            <div class="profile-no-results">
+                                <p>No profiles found for "@GetQ(slot)"</p>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            @if (showNew) {
+                <div class="new-profile-panel">
+                    <div class="new-profile-panel-title"><i class="fas fa-user-plus"></i> New Profile</div>
+                    <div class="form-row">
+                        <div class="form-group"><label>First Name *</label><input class="form-control" @bind="np_first" /></div>
+                        <div class="form-group"><label>Last Name *</label><input class="form-control" @bind="np_last" /></div>
+                        <div class="form-group"><label>Middle Name</label><input class="form-control" @bind="np_mid" /></div>
+                        <div class="form-group"><label>Sex</label>
+                            <select class="form-control" @bind="np_sex"><option>Male</option><option>Female</option></select>
+                        </div>
+                        <div class="form-group"><label>Birth Date</label><input type="date" class="form-control" @bind="np_birth" /></div>
+                        <div class="form-group"><label>Contact</label><input class="form-control" @bind="np_contact" /></div>
+                    </div>
+                    <div class="form-group"><label>Address</label><input class="form-control" @bind="np_addr" /></div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Street</label><input class="form-control" @bind="np_street" /></div>
+                        <div class="form-group"><label>Municipality</label><input class="form-control" @bind="np_mun" /></div>
+                        <div class="form-group"><label>Province</label><input class="form-control" @bind="np_prov" /></div>
+                        <div class="form-group"><label>Church ID</label><input type="number" class="form-control" @bind="np_churchId" /></div>
+                    </div>
+                    <div class="checkbox-row" style="margin-bottom:.8rem;"><input type="checkbox" id="np_mem" @bind="np_member" /><label for="np_mem">Is Church Member</label></div>
+                    <div style="display:flex;gap:.5rem;">
+                        <button class="btn-save-sm" disabled="@isSavingProfile" @onclick="()=>SaveNewProfile(slot)">
+                            @if(isSavingProfile){<span class="spinner-sm"></span>}else{<i class="fas fa-save"></i>} Save Profile
+                        </button>
+                        <button class="btn-cancel-sm" @onclick="()=>SetNew(slot,false)">Cancel</button>
+                    </div>
+                </div>
+            }
+        }
+    };
+
+    async Task HandleInput(ChangeEventArgs e, string slot) {
+        var val = e.Value?.ToString() ?? "";
+        SetQ(slot, val);
+        if (val.Length > 1) {
+            SetDrop(slot, true);
+            await SearchProfiles(val, slot);
+        } else {
+            SetDrop(slot, false);
+            profileResults = new();
+        }
+    }
+    void HandleFocus(string slot) {
+        if (GetQ(slot).Length > 1) SetDrop(slot, true);
+    }
+    string GetQ(string slot) => slot switch { "child"=>q_child, "deceased"=>q_deceased, "kin"=>q_kin, "spouse"=>q_spouse, "w_sponsor"=>q_w_sponsor, "parent"=>q_parent, "cd_sponsor"=>q_cd_sponsor, _=>q_main };
+    void SetQ(string slot, string v) { switch(slot){ case "child": q_child=v; break; case "deceased": q_deceased=v; break; case "kin": q_kin=v; break; case "spouse": q_spouse=v; break; case "w_sponsor": q_w_sponsor=v; break; case "parent": q_parent=v; break; case "cd_sponsor": q_cd_sponsor=v; break; default: q_main=v; break; } }
+    void SetDrop(string slot, bool v) { switch(slot){ case "child": showDropdownFor_child=v; break; case "deceased": showDropdownFor_deceased=v; break; case "kin": showDropdownFor_kin=v; break; case "spouse": showDrop_spouse=v; break; case "w_sponsor": showDrop_w_sponsor=v; break; case "parent": showDrop_parent=v; break; case "cd_sponsor": showDrop_cd_sponsor=v; break; default: showDropdownFor_main=v; break; } }
+    void SetNew(string slot, bool v) { switch(slot){ case "child": showNewProfile_child=v; break; case "deceased": showNewProfile_deceased=v; break; case "kin": showNewProfile_kin=v; break; case "spouse": showNew_spouse=v; break; case "w_sponsor": showNew_w_sponsor=v; break; case "parent": showNew_parent=v; break; case "cd_sponsor": showNew_cd_sponsor=v; break; default: showNewProfile_main=v; break; } }
+
+    RenderFragment BaptismForm() => __builder => {
+        <p class="form-section-title">Person Being Baptized <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("main", pickedProfile, q_main, showDropdownFor_main, showNewProfile_main, p => PickProfile(p, "main"), () => ClearPick("main"))
+        <p class="form-section-title">Details</p>
+        <div class="form-row">
+            <div class="form-group full"><label>Occupation</label><input class="form-control" @bind="b_occupation" placeholder="e.g. Student" /></div>
+        </div>
+        <p class="form-section-title">Schedule</p>
+        <div class="form-row">
+            <div class="form-group"><label>Venue</label><input class="form-control" @bind="b_venue" placeholder="Church / Location" /></div>
+            <div class="form-group"><label>Date</label><input type="date" class="form-control" @bind="b_date" /></div>
+            <div class="form-group"><label>Start Time</label><input type="time" class="form-control" @bind="b_start" /></div>
+            <div class="form-group"><label>End Time</label><input type="time" class="form-control" @bind="b_end" /></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control status-select @StatusClass(b_status)" @bind="b_status">
+                    <option value="in progress">In Progress</option>
+                    <option value="scheduled" disabled="@(!CanSchedule("baptism"))">Scheduled</option>
+                    <option value="rescheduled" disabled="@(!CanSchedule("baptism"))">Rescheduled</option>
+                    <option value="cancelled">Cancelled</option><option value="complete">Complete</option>
+                </select>
+            </div>
+        </div>
+    };
+
+    RenderFragment CounselForm() => __builder => {
+        <p class="form-section-title">Counselee <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("main", pickedProfile, q_main, showDropdownFor_main, showNewProfile_main, p => PickProfile(p, "main"), () => ClearPick("main"))
+        <p class="form-section-title">Details</p>
+        <div class="form-row">
+            <div class="form-group full"><label>Counsel For (Topic / Reason)</label><input class="form-control" @bind="c_counselFor" placeholder="e.g. Marriage, Grief, Faith..." /></div>
+        </div>
+        <p class="form-section-title">Schedule</p>
+        <div class="form-row">
+            <div class="form-group"><label>Date</label><input type="date" class="form-control" @bind="c_date" /></div>
+            <div class="form-group"><label>Start Time</label><input type="time" class="form-control" @bind="c_start" /></div>
+            <div class="form-group"><label>End Time</label><input type="time" class="form-control" @bind="c_end" /></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control status-select @StatusClass(c_status)" @bind="c_status">
+                    <option value="in progress">In Progress</option>
+                    <option value="scheduled" disabled="@(!CanSchedule("counsel"))">Scheduled</option>
+                    <option value="rescheduled" disabled="@(!CanSchedule("counsel"))">Rescheduled</option>
+                    <option value="cancelled">Cancelled</option><option value="complete">Complete</option>
+                </select>
+            </div>
+        </div>
+    };
+
+    RenderFragment WeddingForm() => __builder => {
+        <p class="form-section-title">Spouses (Bride / Groom) <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("spouse", null, q_spouse, showDrop_spouse, showNew_spouse, p => PickProfile(p, "spouse"), () => {})
+        @foreach(var s in w_spouses) {
+            <div class="form-card">
+                <div class="form-card-header">
+                    <span><i class="fas fa-ring"></i> @s.Profile.FirstName @s.Profile.LastName</span>
+                    <button class="btn-remove" @onclick="() => w_spouses.Remove(s)"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="form-row" style="margin-top:.5rem;">
+                    <div class="form-group"><label>Occupation</label><input class="form-control" @bind="s.Occupation" /></div>
+                    <div class="form-group"><label>Religion</label><input class="form-control" @bind="s.Religion" /></div>
+                </div>
+                <div class="checkbox-row"><input type="checkbox" @bind="s.BirthCert" /> Birth Certificate</div>
+                <div class="checkbox-row"><input type="checkbox" @bind="s.Cenomar" /> CENOMAR</div>
+            </div>
+        }
+
+        <p class="form-section-title" style="margin-top:1.5rem;">Witnesses / Sponsors</p>
+        @ProfilePicker("w_sponsor", null, q_w_sponsor, showDrop_w_sponsor, showNew_w_sponsor, p => PickProfile(p, "w_sponsor"), () => {})
+        @if(w_sponsors.Any()) {
+            <div class="pill-list">
+                @foreach(var w in w_sponsors) {
+                    <div class="pill">@w.FirstName @w.LastName <button @onclick="() => w_sponsors.Remove(w)"><i class="fas fa-times"></i></button></div>
+                }
+            </div>
+        }
+
+        <p class="form-section-title" style="margin-top:1.5rem;">Documents</p>
+        <div class="checkbox-row"><input type="checkbox" id="w_cert" @bind="w_cert" /><label for="w_cert">Marriage Certificate</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="w_rec" @bind="w_rec" /><label for="w_rec">Recommendation Letter</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="w_aff" @bind="w_aff" /><label for="w_aff">Affidavit</label></div>
+
+        <p class="form-section-title" style="margin-top:1.5rem;">Schedule</p>
+        <div class="form-row">
+            <div class="form-group full"><label>Venue</label><input class="form-control" @bind="w_venue" placeholder="Wedding venue" /></div>
+            <div class="form-group"><label>Marriage Type</label>
+                <select class="form-control" @bind="w_type"><option>Church</option><option>Civil</option><option>Both</option></select>
+            </div>
+            <div class="form-group"><label>Date</label><input type="date" class="form-control" @bind="w_date" /></div>
+            <div class="form-group"><label>Start Time</label><input type="time" class="form-control" @bind="w_start" /></div>
+            <div class="form-group"><label>End Time</label><input type="time" class="form-control" @bind="w_end" /></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control status-select @StatusClass(w_status)" @bind="w_status">
+                    <option value="in progress">In Progress</option>
+                    <option value="scheduled" disabled="@(!CanSchedule("wedding"))">Scheduled</option>
+                    <option value="rescheduled" disabled="@(!CanSchedule("wedding"))">Rescheduled</option>
+                    <option value="cancelled">Cancelled</option><option value="complete">Complete</option>
+                </select>
+            </div>
+        </div>
+    };
+
+    RenderFragment ChildDedicationForm() => __builder => {
+        <p class="form-section-title">Child <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("child", pickedChild, q_child, showDropdownFor_child, showNewProfile_child, p => PickProfile(p, "child"), () => ClearPick("child"))
+        <p class="form-section-title">Child Details</p>
+        <div class="form-row">
+            <div class="form-group"><label>Place of Birth</label><input class="form-control" @bind="cd_placeOfBirth" /></div>
+            <div class="form-group"><label>Weight at Birth (kg)</label><input type="number" step="0.01" class="form-control" @bind="cd_weight" /></div>
+        </div>
+        <div class="checkbox-row" style="margin-bottom:.8rem;"><input type="checkbox" id="cd_bc" @bind="cd_birthCert" /><label for="cd_bc">Birth Certificate Available</label></div>
+        
+        <p class="form-section-title" style="margin-top:1.5rem;">Parents <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("parent", null, q_parent, showDrop_parent, showNew_parent, p => PickProfile(p, "parent"), () => {})
+        @foreach(var p in cd_parents) {
+            <div class="form-card">
+                <div class="form-card-header">
+                    <span><i class="fas fa-user-friends"></i> @p.Profile.FirstName @p.Profile.LastName</span>
+                    <button class="btn-remove" @onclick="() => cd_parents.Remove(p)"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="form-row" style="margin-top:.5rem;">
+                    <div class="form-group"><label>Citizenship</label><input class="form-control" @bind="p.Citizenship" /></div>
+                    <div class="form-group"><label>Religion</label><input class="form-control" @bind="p.Religion" /></div>
+                    <div class="form-group"><label>Total Children</label><input type="number" class="form-control" @bind="p.TotalNumOfChildren" /></div>
+                </div>
+            </div>
+        }
+
+        <p class="form-section-title" style="margin-top:1.5rem;">Godparents / Sponsors</p>
+        @ProfilePicker("cd_sponsor", null, q_cd_sponsor, showDrop_cd_sponsor, showNew_cd_sponsor, p => PickProfile(p, "cd_sponsor"), () => {})
+        @if(cd_sponsors.Any()) {
+            <div class="pill-list">
+                @foreach(var w in cd_sponsors) {
+                    <div class="pill">@w.FirstName @w.LastName <button @onclick="() => cd_sponsors.Remove(w)"><i class="fas fa-times"></i></button></div>
+                }
+            </div>
+        }
+
+        <p class="form-section-title" style="margin-top:1.5rem;">Parents' Marriage</p>
+        <div class="form-row">
+            <div class="form-group"><label>Marriage Date</label><input type="date" class="form-control" @bind="cd_parentsDate" /></div>
+            <div class="form-group"><label>Municipality</label><input class="form-control" @bind="cd_mun" /></div>
+            <div class="form-group"><label>Province</label><input class="form-control" @bind="cd_prov" /></div>
+            <div class="form-group"><label>Country</label><input class="form-control" @bind="cd_country" /></div>
+        </div>
+        <p class="form-section-title">Schedule</p>
+        <div class="form-row">
+            <div class="form-group"><label>Venue</label><input class="form-control" @bind="cd_venue" /></div>
+            <div class="form-group"><label>Date</label><input type="date" class="form-control" @bind="cd_date" /></div>
+            <div class="form-group"><label>Start Time</label><input type="time" class="form-control" @bind="cd_start" /></div>
+            <div class="form-group"><label>End Time</label><input type="time" class="form-control" @bind="cd_end" /></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control status-select @StatusClass(cd_status)" @bind="cd_status">
+                    <option value="in progress">In Progress</option>
+                    <option value="scheduled" disabled="@(!CanSchedule("child dedication"))">Scheduled</option>
+                    <option value="rescheduled" disabled="@(!CanSchedule("child dedication"))">Rescheduled</option>
+                    <option value="cancelled">Cancelled</option><option value="complete">Complete</option>
+                </select>
+            </div>
+        </div>
+    };
+
+    RenderFragment FuneralForm() => __builder => {
+        <p class="form-section-title">Deceased <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("deceased", pickedDeceased, q_deceased, showDropdownFor_deceased, showNewProfile_deceased, p => PickProfile(p, "deceased"), () => ClearPick("deceased"))
+        <p class="form-section-title" style="margin-top:1.5rem;">Kin / Next of Kin <span style="color:#e74c3c;">*</span></p>
+        @ProfilePicker("kin", pickedKin, q_kin, showDropdownFor_kin, showNewProfile_kin, p => PickProfile(p, "kin"), () => ClearPick("kin"))
+        <div class="form-row" style="margin-top:1rem;">
+            <div class="form-group full"><label>Relationship to Deceased</label><input class="form-control" @bind="f_kinRel" placeholder="e.g. Spouse, Child, Sibling" /></div>
+        </div>
+        <p class="form-section-title">Details</p>
+        <div class="form-row">
+            <div class="form-group"><label>Date of Death</label><input type="date" class="form-control" @bind="f_dateOfDeath" /></div>
+            <div class="form-group full"><label>Cause of Death</label><input class="form-control" @bind="f_cause" /></div>
+            <div class="form-group full"><label>PSA Death Certificate No. (Optional)</label><input class="form-control" @bind="f_psa" /></div>
+        </div>
+        <p class="form-section-title">Schedule</p>
+        <div class="form-row">
+            <div class="form-group"><label>Venue</label><input class="form-control" @bind="f_venue" /></div>
+            <div class="form-group"><label>Date</label><input type="date" class="form-control" @bind="f_date" /></div>
+            <div class="form-group"><label>Start Time</label><input type="time" class="form-control" @bind="f_start" /></div>
+            <div class="form-group"><label>End Time</label><input type="time" class="form-control" @bind="f_end" /></div>
+            <div class="form-group"><label>Status</label>
+                <select class="form-control status-select @StatusClass(f_status)" @bind="f_status">
+                    <option value="in progress">In Progress</option>
+                    <option value="scheduled" disabled="@(!CanSchedule("funeral"))">Scheduled</option>
+                    <option value="rescheduled" disabled="@(!CanSchedule("funeral"))">Rescheduled</option>
+                    <option value="cancelled">Cancelled</option><option value="complete">Complete</option>
+                </select>
+            </div>
+        </div>
+    };
+
+    // ── Helpers ──
+    string GetServiceIcon(string t) => t?.ToLower() switch {
+        "baptism"=>"fas fa-water","counsel"=>"fas fa-comments","wedding"=>"fas fa-heart",
+        "child dedication"=>"fas fa-baby","funeral"=>"fas fa-cross",_=>"fas fa-concierge-bell"
+    };
+    string FormatType(string t) => t switch {
+        "baptism"=>"Baptism","counsel"=>"Counsel","wedding"=>"Wedding",
+        "child dedication"=>"Child Dedication","funeral"=>"Funeral",_=>"All"
+    };
+    string FormatStatus(string s) => s switch {
+        "in progress"=>"In Progress","scheduled"=>"Scheduled","rescheduled"=>"Rescheduled",
+        "cancelled"=>"Cancelled","complete"=>"Complete",_=>s
+    };
+    string GetStatusClass(string s) => s switch {
+        "in progress"=>"status-inprogress","scheduled"=>"status-scheduled","rescheduled"=>"status-rescheduled",
+        "cancelled"=>"status-cancelled","complete"=>"status-complete",_=>""
+    };
+    string FormatDate(string? d) => DateTime.TryParse(d, out var dt) ? dt.ToString("MMM dd, yyyy") : "None";
+    string FormatKey(string k) => System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(k.Replace("-"," "));
+
+    string ServiceManagementIcon(string t) => t switch {
+        "baptism" => "fa-water", "counsel" => "fa-hands-helping", "wedding" => "fa-rings", "child dedication" => "fa-baby", "funeral" => "fa-cross", _ => "fa-calendar-check"
+    };
+
+    bool CanSchedule(string t) => t switch {
+        "baptism" => b_date.HasValue && b_start.HasValue && b_end.HasValue && !string.IsNullOrWhiteSpace(b_venue),
+        "counsel" => c_date.HasValue && c_start.HasValue && c_end.HasValue,
+        "wedding" => w_date.HasValue && w_start.HasValue && w_end.HasValue && !string.IsNullOrWhiteSpace(w_venue) && w_cert && w_rec && w_aff,
+        "child dedication" => cd_date.HasValue && cd_start.HasValue && cd_end.HasValue && !string.IsNullOrWhiteSpace(cd_venue) && cd_birthCert,
+        "funeral" => f_date.HasValue && f_start.HasValue && f_end.HasValue && !string.IsNullOrWhiteSpace(f_venue),
+        _ => false
+    };
+
+    string StatusClass(string s) => string.IsNullOrWhiteSpace(s) ? "" : "status-" + s.Replace(" ", "");
+
+    string GetFormValidationMessage() {
+        switch(selectedType) {
+            case "baptism":
+                if (pickedProfile == null) return "Person Being Baptized profile is required.";
+                break;
+            case "counsel":
+                if (pickedProfile == null) return "Counselee profile is required.";
+                break;
+            case "wedding":
+                if (w_spouses.Count != 2) return "Exactly 2 spouse profiles (Bride and Groom) are required.";
+                bool hasMale = w_spouses.Any(s => s.Profile.Sex.Equals("Male", StringComparison.OrdinalIgnoreCase));
+                bool hasFemale = w_spouses.Any(s => s.Profile.Sex.Equals("Female", StringComparison.OrdinalIgnoreCase));
+                if (!hasMale || !hasFemale) return "Spouses must include one Male (Groom) and one Female (Bride).";
+                break;
+            case "child dedication":
+                if (pickedChild == null) return "Child profile is required.";
+                if (cd_parents.Count == 0) return "At least one Parent profile is required.";
+                break;
+            case "funeral":
+                if (pickedDeceased == null) return "Deceased profile is required.";
+                if (pickedKin == null) return "Kin / Next of Kin profile is required.";
+                break;
+        }
+        return "";
+    }
+    
+    bool IsFormValid() => string.IsNullOrEmpty(GetFormValidationMessage());
+
+    bool IsScheduleConflict(DateTime? targetDate, TimeOnly? targetStart, TimeOnly? targetEnd) {
+        if (!targetDate.HasValue || !targetStart.HasValue || !targetEnd.HasValue) return false;
+        
+        var dateStr = targetDate.Value.ToString("yyyy-MM-dd");
+        
+        // Check services
+        foreach(var s in AllServices) {
+            if (s.Status != "scheduled" && s.Status != "rescheduled") continue;
+            if (s.ImplementationDate != dateStr) continue;
+            
+            if (TimeOnly.TryParse(s.StartTime, out var sStart) && TimeOnly.TryParse(s.EndTime, out var sEnd)) {
+                if (targetStart.Value < sEnd && targetEnd.Value > sStart) return true;
+            }
+        }
+        
+        // Check appointments
+        foreach(var a in AllAppointments) {
+            if (a.Status != "scheduled" && a.Status != "rescheduled") continue;
+            if (a.ImplementationDate != dateStr) continue;
+            
+            if (DateTime.TryParse(a.StartTime, out var aStartDt) && DateTime.TryParse(a.EndTime, out var aEndDt)) {
+                var aStart = TimeOnly.FromDateTime(aStartDt);
+                var aEnd = TimeOnly.FromDateTime(aEndDt);
+                if (targetStart.Value < aEnd && targetEnd.Value > aStart) return true;
+            }
+        }
+        return false;
+    }
+
+    // ── DTOs / Models ──
+    class ServiceItem {
+        public int Id { get; set; }
+        public string Type { get; set; } = "";
+        public string PersonName { get; set; } = "";
+        public string? ImplementationDate { get; set; }
+        public string? StartTime { get; set; }
+        public string? EndTime { get; set; }
+        public string Status { get; set; } = "";
+        public Dictionary<string, string> Extra { get; set; } = new();
+    }
+
+    class ProfileDto {
+        public int ProfileId { get; set; }
+        public string FirstName { get; set; } = "";
+        public string? MiddleName { get; set; }
+        public string LastName { get; set; } = "";
+        public string Sex { get; set; } = "";
+        public string? ContactNumber { get; set; }
+        public string? BirthDate { get; set; }
+        public string ProfileStatus { get; set; } = "";
+    }
+
+    class WeddingProfileUI {
+        public ProfileDto Profile { get; set; } = new();
+        public bool BirthCert { get; set; }
+        public string Occupation { get; set; } = "";
+        public string Religion { get; set; } = "";
+        public bool Cenomar { get; set; }
+    }
+
+    class ParentProfileUI {
+        public ProfileDto Profile { get; set; } = new();
+        public string Citizenship { get; set; } = "";
+        public string Religion { get; set; } = "";
+        public int TotalNumOfChildren { get; set; }
+    }
+}

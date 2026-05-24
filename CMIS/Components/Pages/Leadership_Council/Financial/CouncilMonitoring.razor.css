@@ -1,0 +1,7 @@
+.page-heading { margin-bottom: 1.5rem; }
+.page-title { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.65rem; color: #0d2137; margin: 0 0 0.3rem; }
+.page-subtitle { font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #6b7c93; margin: 0; }
+.tab-bar { display: flex; gap: 0; border-bottom: 2px solid #e8ecf1; margin-bottom: 1.25rem; }
+.tab { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.7rem 1.1rem; font-family: 'Inter', sans-serif; font-size: 0.82rem; font-weight: 600; color: #6b7c93; text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; white-space: nowrap; }
+.tab:hover { color: #0d2137; }
+.tab.active { color: #0d2137; border-bottom-color: #0d2137; }

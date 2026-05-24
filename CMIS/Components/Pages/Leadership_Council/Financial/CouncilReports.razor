@@ -1,0 +1,323 @@
+@page "/leadership-council/financial/reports"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<PageTitle>Reports — Leadership Council</PageTitle>
+
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/leadership-council/financial/proposals" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Budget Proposals</a>
+    <a href="/leadership-council/financial/transactions" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Transactions</a>
+    <a href="/leadership-council/financial/allocation" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Budget Allocation</a>
+    <a href="/leadership-council/financial/monitoring" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Monitoring</a>
+    <a href="/leadership-council/financial/reports" class="tab active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Reports</a>
+</div>
+
+<!-- Report Header -->
+<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;">
+    <div>
+        <h2 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.3rem;color:#0d2137;margin:0 0 0.2rem;">Financial Reports</h2>
+        <p style="font-family:'Inter',sans-serif;font-size:0.8rem;color:#6b7c93;margin:0;">Real-time summaries across National, District, Local Church, and Ministry levels.</p>
+    </div>
+    <button style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.55rem 1rem;font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:600;color:#0d2137;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export Report
+    </button>
+</div>
+
+<!-- Filters -->
+<div style="background:#fff;border:1px solid #e8ecf1;border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;gap:0.4rem;margin-bottom:0.6rem;font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        Filters
+    </div>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:flex-end;">
+        <div style="flex:1;min-width:130px;">
+            <label style="display:block;font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;margin-bottom:0.2rem;">From</label>
+            <input type="date" @bind="filterFrom" style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid #d1d9e6;border-radius:6px;font-family:'Inter',sans-serif;font-size:0.8rem;color:#2c3e50;outline:none;" />
+        </div>
+        <div style="flex:1;min-width:130px;">
+            <label style="display:block;font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;margin-bottom:0.2rem;">To</label>
+            <input type="date" @bind="filterTo" style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid #d1d9e6;border-radius:6px;font-family:'Inter',sans-serif;font-size:0.8rem;color:#2c3e50;outline:none;" />
+        </div>
+        <div style="flex:1;min-width:120px;">
+            <label style="display:block;font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;margin-bottom:0.2rem;">Level</label>
+            <select @bind="filterLevel" style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid #d1d9e6;border-radius:6px;font-family:'Inter',sans-serif;font-size:0.8rem;color:#2c3e50;outline:none;background:#fff;">
+                <option value="">All Levels</option>
+                <option value="Ministry">Ministry</option>
+                <option value="Local Church">Local Church</option>
+                <option value="District">District</option>
+                <option value="National">National</option>
+            </select>
+        </div>
+        <div style="flex:1;min-width:120px;">
+            <label style="display:block;font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;margin-bottom:0.2rem;">Account</label>
+            <select @bind="filterAccount" style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid #d1d9e6;border-radius:6px;font-family:'Inter',sans-serif;font-size:0.8rem;color:#2c3e50;outline:none;background:#fff;">
+                <option value="">All</option>
+                @foreach (var acc in accountNames)
+                {
+                    <option value="@acc">@acc</option>
+                }
+            </select>
+        </div>
+        <div style="flex:1;min-width:100px;">
+            <label style="display:block;font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;margin-bottom:0.2rem;">Type</label>
+            <select @bind="filterType" style="width:100%;padding:0.45rem 0.6rem;border:1.5px solid #d1d9e6;border-radius:6px;font-family:'Inter',sans-serif;font-size:0.8rem;color:#2c3e50;outline:none;background:#fff;">
+                <option value="">All Types</option>
+                <option value="Income">Income</option>
+                <option value="Expense">Expense</option>
+            </select>
+        </div>
+    </div>
+    <div style="text-align:right;margin-top:0.4rem;">
+        <button @onclick="ResetFilters" style="background:none;border:none;font-family:'Inter',sans-serif;font-size:0.75rem;color:#1a5276;cursor:pointer;text-decoration:underline;">Reset filters</button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;margin-bottom:1.25rem;">
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:10px;padding:1rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-family:'Inter',sans-serif;font-size:0.75rem;color:#6b7c93;">Total Income</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#27ae60" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+        </div>
+        <span style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.5rem;color:#27ae60;">$@totalIncome.ToString("N0")</span>
+    </div>
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:10px;padding:1rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-family:'Inter',sans-serif;font-size:0.75rem;color:#6b7c93;">Total Expenses</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/></svg>
+        </div>
+        <span style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.5rem;color:#c0392b;">$@totalExpenses.ToString("N0")</span>
+    </div>
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:10px;padding:1rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-family:'Inter',sans-serif;font-size:0.75rem;color:#6b7c93;">Net Position</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a5276" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+        </div>
+        <span style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.5rem;color:#0d2137;">$@netPosition.ToString("N0")</span>
+    </div>
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:10px;padding:1rem 1.1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <span style="font-family:'Inter',sans-serif;font-size:0.75rem;color:#6b7c93;">Active Budgets</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e67e22" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        <span style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.5rem;color:#0d2137;">@activeBudgets</span>
+    </div>
+</div>
+
+<!-- Charts Row -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+    <!-- Income vs Expense Trend -->
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:12px;padding:1.2rem;">
+        <h3 style="font-family:'Outfit',sans-serif;font-weight:700;font-size:0.95rem;color:#0d2137;margin:0 0 1rem;">Income vs Expense Trend</h3>
+        <div style="position:relative;height:180px;border-left:1px solid #e8ecf1;border-bottom:1px solid #e8ecf1;">
+            @{ var maxVal = Math.Max(totalIncome, totalExpenses); maxVal = maxVal == 0 ? 1 : maxVal; }
+            <!-- Income line -->
+            <div style="position:absolute;bottom:0;left:0;right:0;height:@((totalIncome/maxVal*100).ToString("F0"))%;background:linear-gradient(180deg,rgba(39,174,96,0.15),rgba(39,174,96,0.02));border-top:3px solid #27ae60;"></div>
+            <!-- Expense line -->
+            <div style="position:absolute;bottom:0;left:30%;right:30%;height:@((totalExpenses/maxVal*100).ToString("F0"))%;background:linear-gradient(180deg,rgba(192,57,43,0.15),rgba(192,57,43,0.02));border-top:3px solid #c0392b;"></div>
+        </div>
+        <div style="display:flex;justify-content:center;gap:1.5rem;margin-top:0.6rem;">
+            <span style="display:flex;align-items:center;gap:0.3rem;font-family:'Inter',sans-serif;font-size:0.72rem;color:#27ae60;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#27ae60;display:inline-block;"></span> Income
+            </span>
+            <span style="display:flex;align-items:center;gap:0.3rem;font-family:'Inter',sans-serif;font-size:0.72rem;color:#c0392b;">
+                <span style="width:8px;height:8px;border-radius:50%;background:#c0392b;display:inline-block;"></span> Expense
+            </span>
+        </div>
+    </div>
+    <!-- Budget Utilization by Level -->
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:12px;padding:1.2rem;">
+        <h3 style="font-family:'Outfit',sans-serif;font-weight:700;font-size:0.95rem;color:#0d2137;margin:0 0 1rem;">Budget Utilization by Level</h3>
+        <div style="display:flex;align-items:flex-end;gap:0.5rem;height:180px;border-left:1px solid #e8ecf1;border-bottom:1px solid #e8ecf1;padding:0 0.5rem;">
+            @{ var maxAlloc = allocations.Any() ? allocations.Max(a => a.Allocated) : 1m; }
+            @foreach (var cat in allocationsByCategory)
+            {
+                var allocH = (double)(cat.TotalAllocated / maxAlloc) * 100;
+                var spentH = (double)(cat.TotalSpent / maxAlloc) * 100;
+                <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:0.2rem;">
+                    <div style="display:flex;gap:3px;align-items:flex-end;height:160px;width:100%;">
+                        <div style="flex:1;background:#0d2137;border-radius:3px 3px 0 0;height:@(allocH.ToString("F0"))%;min-height:4px;"></div>
+                        <div style="flex:1;background:#e67e22;border-radius:3px 3px 0 0;height:@(spentH.ToString("F0"))%;min-height:4px;"></div>
+                    </div>
+                    <span style="font-family:'Inter',sans-serif;font-size:0.62rem;color:#6b7c93;text-align:center;">@cat.Label</span>
+                </div>
+            }
+        </div>
+        <div style="display:flex;justify-content:center;gap:1.5rem;margin-top:0.6rem;">
+            <span style="display:flex;align-items:center;gap:0.3rem;font-family:'Inter',sans-serif;font-size:0.72rem;color:#0d2137;">
+                <span style="width:10px;height:10px;border-radius:2px;background:#0d2137;display:inline-block;"></span> Allocated
+            </span>
+            <span style="display:flex;align-items:center;gap:0.3rem;font-family:'Inter',sans-serif;font-size:0.72rem;color:#e67e22;">
+                <span style="width:10px;height:10px;border-radius:2px;background:#e67e22;display:inline-block;"></span> Spent
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- Budget Balance Summary -->
+<div style="background:#fff;border:1px solid #e8ecf1;border-radius:12px;padding:1.2rem;margin-bottom:1.25rem;">
+    <h3 style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;color:#0d2137;margin:0 0 0.8rem;">Budget Balance Summary</h3>
+    <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:0.82rem;table-layout:fixed;">
+        <colgroup><col style="width:22%"/><col style="width:12%"/><col style="width:14%"/><col style="width:14%"/><col style="width:14%"/><col style="width:24%"/></colgroup>
+        <thead>
+            <tr>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#1a5276;border-bottom:1px solid #e8ecf1;">Budget</th>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#1a5276;border-bottom:1px solid #e8ecf1;">Level</th>
+                <th style="padding:0.6rem 0.8rem;text-align:right;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Allocated</th>
+                <th style="padding:0.6rem 0.8rem;text-align:right;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Spent</th>
+                <th style="padding:0.6rem 0.8rem;text-align:right;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Remaining</th>
+                <th style="padding:0.6rem 0.8rem;text-align:right;font-weight:600;font-size:0.72rem;color:#1a5276;border-bottom:1px solid #e8ecf1;">Utilization</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in allocations)
+            {
+                var pct = a.Utilization;
+                var barColor = pct > 75 ? "#c0392b" : pct > 50 ? "#e67e22" : "#0d2137";
+                <tr style="border-bottom:1px solid #f0f3f6;">
+                    <td style="padding:0.7rem 0.8rem;font-weight:600;color:#0d2137;">@a.Name</td>
+                    <td style="padding:0.7rem 0.8rem;">
+                        <span style="padding:0.15rem 0.5rem;border-radius:4px;font-size:0.68rem;font-weight:700;background:#e8f4f8;color:#1a5276;">@a.Category</span>
+                    </td>
+                    <td style="padding:0.7rem 0.8rem;text-align:right;color:#2c3e50;">$@a.Allocated.ToString("N0")</td>
+                    <td style="padding:0.7rem 0.8rem;text-align:right;color:#2c3e50;">$@a.Spent.ToString("N0")</td>
+                    <td style="padding:0.7rem 0.8rem;text-align:right;font-weight:600;color:#0d2137;">$@a.RemainingBalance.ToString("N0")</td>
+                    <td style="padding:0.7rem 0.8rem;">
+                        <div style="display:flex;align-items:center;gap:0.5rem;justify-content:flex-end;">
+                            <div style="width:60px;height:6px;background:#e8ecf1;border-radius:3px;overflow:hidden;">
+                                <div style="height:100%;width:@(pct.ToString("F0"))%;background:@barColor;border-radius:3px;"></div>
+                            </div>
+                            <span style="font-size:0.75rem;color:#6b7c93;min-width:30px;text-align:right;">@(pct.ToString("F0"))%</span>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Filtered Transactions -->
+<div style="background:#fff;border:1px solid #e8ecf1;border-radius:12px;padding:1.2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.8rem;">
+        <h3 style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;color:#0d2137;margin:0;">Filtered Transactions</h3>
+        <span style="font-family:'Inter',sans-serif;font-size:0.75rem;color:#6b7c93;">@filteredTransactions.Count records</span>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:0.82rem;table-layout:fixed;">
+        <colgroup><col style="width:12%"/><col style="width:26%"/><col style="width:16%"/><col style="width:16%"/><col style="width:14%"/><col style="width:16%"/></colgroup>
+        <thead>
+            <tr>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Date</th>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Description</th>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Account</th>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Budget</th>
+                <th style="padding:0.6rem 0.8rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Type</th>
+                <th style="padding:0.6rem 0.8rem;text-align:right;font-weight:600;font-size:0.72rem;color:#6b7c93;border-bottom:1px solid #e8ecf1;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in filteredTransactions)
+            {
+                <tr style="border-bottom:1px solid #f0f3f6;">
+                    <td style="padding:0.65rem 0.8rem;color:#2c3e50;">@t.TransactionDate.ToString("M/d/yyyy")</td>
+                    <td style="padding:0.65rem 0.8rem;color:#0d2137;font-weight:500;">@t.Description</td>
+                    <td style="padding:0.65rem 0.8rem;color:#2c3e50;">@t.Allocation?.Name ?? "—"</td>
+                    <td style="padding:0.65rem 0.8rem;color:#6b7c93;">@(t.BudgetLabel?.Replace("Budget: ", "") ?? "—")</td>
+                    <td style="padding:0.65rem 0.8rem;">
+                        <span style="padding:0.15rem 0.45rem;border-radius:3px;font-size:0.62rem;font-weight:700;letter-spacing:0.04em;@(t.Type == "Income" ? "background:#eafaf1;color:#1e8449;" : "background:#fdedec;color:#c0392b;")">@t.Type.ToUpper()</span>
+                    </td>
+                    <td style="padding:0.65rem 0.8rem;text-align:right;font-weight:700;color:@(t.Type == "Income" ? "#1e8449" : "#c0392b");">
+                        @(t.Type == "Income" ? "+" : "-")$@t.Amount.ToString("N0")
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<CMIS.Models.Transaction> allTransactions = new();
+    private List<BudgetAllocation> allocations = new();
+    private List<string> accountNames = new();
+
+    private DateTime? filterFrom;
+    private DateTime? filterTo;
+    private string filterLevel = "";
+    private string filterAccount = "";
+    private string filterType = "";
+
+    private decimal totalIncome => filteredTransactions.Where(t => t.Type == "Income").Sum(t => t.Amount);
+    private decimal totalExpenses => filteredTransactions.Where(t => t.Type == "Expense").Sum(t => t.Amount);
+    private decimal netPosition => totalIncome - totalExpenses;
+    private int activeBudgets => allocations.Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        allTransactions = await Db.Transactions
+            .Include(t => t.RecordedBy)
+            .Include(t => t.Allocation)
+            .OrderByDescending(t => t.TransactionDate)
+            .ToListAsync();
+
+        allocations = await Db.BudgetAllocations
+            .OrderBy(a => a.Category).ThenBy(a => a.Name)
+            .ToListAsync();
+
+        accountNames = allTransactions.Select(t => t.Allocation?.Name ?? "—").Distinct().OrderBy(n => n).ToList();
+    }
+
+    private List<CMIS.Models.Transaction> filteredTransactions
+    {
+        get
+        {
+            var q = allTransactions.AsEnumerable();
+            if (filterFrom.HasValue) q = q.Where(t => t.TransactionDate >= filterFrom.Value);
+            if (filterTo.HasValue) q = q.Where(t => t.TransactionDate <= filterTo.Value);
+            if (!string.IsNullOrEmpty(filterType)) q = q.Where(t => t.Type == filterType);
+            if (!string.IsNullOrEmpty(filterAccount)) q = q.Where(t => (t.Allocation?.Name ?? "") == filterAccount);
+            return q.ToList();
+        }
+    }
+
+    private List<CategorySummary> allocationsByCategory
+    {
+        get
+        {
+            return allocations
+                .GroupBy(a => a.Category)
+                .Select(g => new CategorySummary
+                {
+                    Label = g.Key,
+                    TotalAllocated = g.Sum(x => x.Allocated),
+                    TotalSpent = g.Sum(x => x.Spent)
+                })
+                .OrderBy(c => c.Label)
+                .ToList();
+        }
+    }
+
+    private void ResetFilters()
+    {
+        filterFrom = null;
+        filterTo = null;
+        filterLevel = "";
+        filterAccount = "";
+        filterType = "";
+    }
+
+    private class CategorySummary
+    {
+        public string Label { get; set; } = "";
+        public decimal TotalAllocated { get; set; }
+        public decimal TotalSpent { get; set; }
+    }
+}

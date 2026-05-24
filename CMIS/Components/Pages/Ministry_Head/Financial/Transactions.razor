@@ -1,0 +1,378 @@
+@page "/ministry-head/financial/transactions"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using CMIS.Models
+@using CMIS.Services
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Transactions — CMIS Portal</PageTitle>
+
+<!-- Page Heading -->
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/ministry-head/financial/proposals" class="tab" id="tab-proposals">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Budget Proposals
+    </a>
+    <a href="/ministry-head/financial/transactions" class="tab active" id="tab-transactions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Transactions
+    </a>
+    <a href="/ministry-head/financial/monitoring" class="tab" id="tab-monitoring">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Monitoring
+    </a>
+    <a href="/ministry-head/financial/reports" class="tab" id="tab-reports">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+    </a>
+</div>
+
+<!-- General Fund Balance -->
+@if (churchBudget > 0)
+{
+    var remainPct = (double)(remaining / churchBudget) * 100;
+    var remainColor = remaining < 0 ? "#c0392b" : remaining < churchBudget * 0.2m ? "#e67e22" : "#1e8449";
+    <div style="background:#fff;border:1px solid #e8ecf1;border-radius:12px;padding:0.9rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:0.45rem;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0d2137" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            <span style="font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:700;color:#0d2137;white-space:nowrap;">General Fund Balance</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:1.5rem;flex:1;flex-wrap:wrap;">
+            <div>
+                <div style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Budget</div>
+                <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;color:#0d2137;">$@churchBudget.ToString("N0")</div>
+            </div>
+            <div>
+                <div style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Spent</div>
+                <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;color:#c0392b;">$@totalSpent.ToString("N0")</div>
+            </div>
+            <div>
+                <div style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;">Remaining</div>
+                <div style="font-family:'Outfit',sans-serif;font-weight:700;font-size:1rem;color:@remainColor;">$@remaining.ToString("N0")</div>
+            </div>
+            <div style="flex:1;min-width:100px;">
+                <div style="font-family:'Inter',sans-serif;font-size:0.68rem;color:#8e99a4;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.3rem;">@(Math.Max(remainPct,0).ToString("F0"))% remaining</div>
+                <div style="height:6px;background:#f0f3f6;border-radius:3px;overflow:hidden;">
+                    <div style="height:100%;width:@(Math.Min(Math.Max(remainPct,0),100).ToString("F0"))%;background:@remainColor;border-radius:3px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Toolbar -->
+<div class="toolbar">
+    <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="Search transactions..." @bind="searchQuery" @bind:event="oninput" id="search-transactions" />
+    </div>
+    <select class="type-filter" @bind="typeFilter" id="type-filter">
+        <option value="">All Types</option>
+        <option value="Income">Income</option>
+        <option value="Expense">Expense</option>
+    </select>
+    <select class="type-filter" @bind="budgetFilter" id="budget-filter">
+        <option value="0">All Allocations</option>
+        @foreach (var alloc in allTransactions.Where(t => t.Allocation != null).Select(t => t.Allocation!).DistinctBy(a => a.AllocationId).OrderBy(a => a.Name))
+        {
+            <option value="@alloc.AllocationId">@alloc.Name</option>
+        }
+    </select>
+    <button class="btn-record" id="btn-record" @onclick="OpenModal">
+        + Record Transaction
+    </button>
+</div>
+
+<!-- Data Table -->
+<div class="table-container">
+    <table class="transactions-table" style="table-layout:fixed;">
+        <colgroup>
+            <col style="width:14%;" />
+            <col style="width:28%;" />
+            <col style="width:22%;" />
+            <col style="width:18%;" />
+            <col style="width:18%;" />
+        </colgroup>
+        <thead>
+            <tr>
+                <th>Date / ID</th>
+                <th>Description</th>
+                <th>Account / Budget</th>
+                <th>Recorded By</th>
+                <th style="text-align:right;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (filteredTransactions.Any())
+            {
+                @foreach (var t in filteredTransactions)
+                {
+                    <tr>
+                        <td>
+                            <div>
+                                <span style="font-weight:600;color:#0d2137;display:block;">@t.TransactionDate.ToString("M/d/yyyy")</span>
+                                <span style="font-size:0.72rem;color:#8e99a4;display:block;">@t.TransactionCode</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <span style="font-weight:600;color:#0d2137;display:block;margin-bottom:0.25rem;">@t.Description</span>
+                                <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.55rem;border-radius:4px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;@(t.Type == "Income" ? "background:#eafaf1;color:#1e8449;" : "background:#fdedec;color:#c0392b;")">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                        @if (t.Type == "Income")
+                                        {
+                                            <polyline points="7 17 12 12 17 17"/>
+                                            <line x1="12" y1="12" x2="12" y2="22"/>
+                                        }
+                                        else
+                                        {
+                                            <polyline points="7 7 12 12 17 7"/>
+                                            <line x1="12" y1="12" x2="12" y2="2"/>
+                                        }
+                                    </svg>
+                                    @t.Type.ToUpper()
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <span style="font-weight:600;color:#1a5276;display:block;">@(t.Allocation?.Name ?? "—")</span>
+                                @if (!string.IsNullOrEmpty(t.BudgetLabel))
+                                {
+                                    <span style="font-size:0.72rem;color:#8e99a4;display:block;">@t.BudgetLabel</span>
+                                }
+                            </div>
+                        </td>
+                        <td style="color:#2c3e50;white-space:nowrap;">@GetRecorderName(t)</td>
+                        <td style="text-align:right;font-weight:700;font-size:0.9rem;white-space:nowrap;color:@(t.Type == "Income" ? "#1e8449" : "#c0392b");">
+                            @(t.Type == "Income" ? "+" : "-")$@Math.Abs(t.Amount).ToString("N0")
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="5" class="empty-state">No transactions found.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Record Transaction Modal -->
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <h2 class="modal-title">Record Transaction</h2>
+
+            <!-- Type Toggle -->
+            <div class="modal-type-toggle">
+                <button class="toggle-btn @(newType == "Income" ? "toggle-income-active" : "")"
+                        @onclick='() => newType = "Income"'>
+                    Income
+                </button>
+                <button class="toggle-btn @(newType == "Expense" ? "toggle-expense-active" : "")"
+                        @onclick='() => newType = "Expense"'>
+                    Expense
+                </button>
+            </div>
+
+
+            <!-- Amount -->
+            <div class="modal-field">
+                <label class="modal-label">Amount ($)</label>
+                <input type="number" class="modal-input" step="0.01" min="0" placeholder="0.00"
+                       @bind="newAmount" />
+            </div>
+
+            <!-- Description -->
+            <div class="modal-field">
+                <label class="modal-label">Description</label>
+                <input type="text" class="modal-input" placeholder="What was this for?"
+                       @bind="newDescription" />
+            </div>
+
+            <!-- Budget Allocation -->
+            <div class="modal-field">
+                <label class="modal-label">Budget Allocation</label>
+                <select class="modal-select" @bind="newBudgetAllocationId">
+                    <option value="0">-- No Allocation --</option>
+                    @foreach (var b in budgetAllocations)
+                    {
+                        <option value="@b.AllocationId">@b.Name</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <p class="modal-error">@modalError</p>
+            }
+
+            <!-- Actions -->
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" @onclick="CloseModal">Cancel</button>
+                <button class="modal-btn-save" @onclick="SaveTransaction" disabled="@isSaving">
+                    @(isSaving ? "Saving..." : "Save Transaction")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Transaction> allTransactions = new();
+    private List<BudgetAllocation> budgetAllocations = new();
+    private string searchQuery = "";
+    private string typeFilter = "";
+    private int budgetFilter = 0;
+
+    // Modal state
+    private bool showModal = false;
+    private bool isSaving = false;
+    private string newType = "Income";
+    private decimal newAmount = 0;
+    private string newDescription = "";
+    private int newBudgetAllocationId = 0;
+    private string modalError = "";
+    private int currentProfileId = 0;
+    private int currentChurchId = 0;
+    private decimal churchBudget = 0;
+    private decimal totalSpent => allTransactions.Where(t => t.Type == "Expense").Sum(t => t.Amount);
+    private decimal remaining => churchBudget - totalSpent;
+
+    protected override async Task OnInitializedAsync()
+    {
+        budgetAllocations = await Db.BudgetAllocations.OrderBy(b => b.Name).ToListAsync();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var accountIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (accountIdClaim != null && int.TryParse(accountIdClaim.Value, out int accountId))
+        {
+            var account = await Db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId);
+            currentProfileId = account?.ProfileId ?? 0;
+            currentChurchId = account?.ChurchId ?? 0;
+            churchBudget = await Db.Budgets
+                .Where(b => b.Level == "Church" && b.ChurchId == currentChurchId)
+                .SumAsync(b => b.TotalAmount);
+        }
+
+        allTransactions = await Db.Transactions
+            .Include(t => t.RecordedBy)
+            .Include(t => t.Allocation)
+            .Where(t => t.RecordedBy.ChurchId == currentChurchId)
+            .OrderByDescending(t => t.TransactionDate)
+            .ThenByDescending(t => t.TransactionCode)
+            .ToListAsync();
+    }
+
+    private void OpenModal()
+    {
+        newType = "Income";
+        newAmount = 0;
+        newDescription = "";
+        newBudgetAllocationId = 0;
+        modalError = "";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        modalError = "";
+    }
+
+    private async Task SaveTransaction()
+    {
+        modalError = "";
+
+        if (newAmount <= 0) { modalError = "Amount must be greater than zero."; return; }
+        if (string.IsNullOrWhiteSpace(newDescription)) { modalError = "Description is required."; return; }
+        if (currentProfileId == 0) { modalError = "Unable to identify current user."; return; }
+
+        isSaving = true;
+
+        var lastCode = await Db.Transactions
+            .OrderByDescending(t => t.TransactionId)
+            .Select(t => t.TransactionCode)
+            .FirstOrDefaultAsync();
+
+        int nextNum = 1001;
+        if (lastCode != null && lastCode.StartsWith("TX-") && int.TryParse(lastCode[3..], out int parsed))
+            nextNum = parsed + 1;
+
+        var selectedAlloc = budgetAllocations.FirstOrDefault(b => b.AllocationId == newBudgetAllocationId);
+        if (newType == "Expense" && selectedAlloc != null)
+        {
+            selectedAlloc.Spent += newAmount;
+            Db.BudgetAllocations.Update(selectedAlloc);
+        }
+
+        var tx = new Transaction
+        {
+            TransactionCode = $"TX-{nextNum}",
+            Description = newDescription.Trim(),
+            Type = newType,
+            BudgetAllocationId = newBudgetAllocationId > 0 ? newBudgetAllocationId : (int?)null,
+            BudgetLabel = null,
+            Amount = newAmount,
+            RecordedById = currentProfileId,
+            TransactionDate = DateTime.Today,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Db.Transactions.Add(tx);
+        await Db.SaveChangesAsync();
+
+        allTransactions = await Db.Transactions
+            .Include(t => t.RecordedBy)
+            .Include(t => t.Allocation)
+            .Where(t => t.RecordedBy.ChurchId == currentChurchId)
+            .OrderByDescending(t => t.TransactionDate)
+            .ThenByDescending(t => t.TransactionCode)
+            .ToListAsync();
+
+        isSaving = false;
+        showModal = false;
+    }
+
+    private List<Transaction> filteredTransactions
+    {
+        get
+        {
+            var results = allTransactions.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var q = searchQuery.Trim().ToLower();
+                results = results.Where(t =>
+                    t.Description.ToLower().Contains(q) ||
+                    t.TransactionCode.ToLower().Contains(q) ||
+                    (t.Allocation?.Name ?? "").ToLower().Contains(q));
+            }
+
+            if (!string.IsNullOrEmpty(typeFilter))
+                results = results.Where(t => t.Type == typeFilter);
+
+            if (budgetFilter > 0)
+                results = results.Where(t => t.BudgetAllocationId == budgetFilter);
+
+            return results.ToList();
+        }
+    }
+
+    private string GetRecorderName(Transaction t) =>
+        $"{t.RecordedBy?.FirstName} {t.RecordedBy?.LastName}".Trim();
+}

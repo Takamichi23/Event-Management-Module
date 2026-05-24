@@ -1,0 +1,414 @@
+@page "/ministry-head/financial/proposals"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@using CMIS.Services
+@using CMIS.Data
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Financial Management — CMIS Portal</PageTitle>
+
+<!-- Page Heading -->
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/ministry-head/financial/proposals" class="tab active" id="tab-proposals">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Budget Proposals
+    </a>
+    <a href="/ministry-head/financial/transactions" class="tab" id="tab-transactions">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        Transactions
+    </a>
+    <a href="/ministry-head/financial/monitoring" class="tab" id="tab-monitoring">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Monitoring
+    </a>
+    <a href="/ministry-head/financial/reports" class="tab" id="tab-reports">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+    </a>
+</div>
+
+<!-- Authority Banner -->
+<div class="authority-banner">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    Your authority: Create <strong>Ministry</strong> budget proposals and submit them to <strong>Head Pastor</strong> for approval.
+</div>
+
+<!-- Sub Tabs -->
+<div class="sub-tabs">
+    <button class="sub-tab @(activeSubTab == "mine" ? "active" : "")" @onclick='() => activeSubTab = "mine"'>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><line x1="21" y1="3" x2="14" y2="10"/></svg>
+        My Proposals
+        <span class="badge">@myProposals.Count</span>
+    </button>
+    <button class="sub-tab @(activeSubTab == "all" ? "active" : "")" @onclick='() => activeSubTab = "all"'>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>
+        All Proposals
+        <span class="badge">@allProposals.Count</span>
+    </button>
+</div>
+
+<!-- Toolbar -->
+<div class="toolbar">
+    <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="Search proposals..." @bind="searchQuery" @bind:event="oninput" id="search-proposals" />
+    </div>
+    <select class="status-filter" @bind="statusFilter" id="status-filter">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="Approved">Approved</option>
+        <option value="Disapproved">Disapproved</option>
+    </select>
+    <select class="status-filter" @bind="ministryFilter" id="ministry-filter">
+        <option value="0">All Ministries</option>
+        @foreach (var m in ministries)
+        {
+            <option value="@m.MinistryId">@m.MinistryName</option>
+        }
+    </select>
+    <button class="btn-new-proposal" id="btn-new-proposal" @onclick="OpenModal">
+        + New Ministry Proposal
+    </button>
+</div>
+
+<!-- Data Table -->
+<div class="table-container">
+    <table class="proposals-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Purpose</th>
+                <th>Ministry</th>
+                <th>Amount</th>
+                <th>Submission</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (filteredProposals.Any())
+            {
+                @foreach (var p in filteredProposals)
+                {
+                    <tr>
+                        <td class="col-id">@p.ProposalCode</td>
+                        <td class="col-purpose">
+                            <span class="purpose-title">@p.Purpose</span>
+                            <span class="purpose-ministry">@p.Ministry?.MinistryName</span>
+                        </td>
+                        <td><span class="level-badge">@p.Ministry?.MinistryName</span></td>
+                        <td class="col-amount">$@p.Amount.ToString("N0")</td>
+                        <td class="col-submission">
+                            <span class="submission-from">Ministry Head</span>
+                            <span class="submission-arrow">→ Head Pastor</span>
+                        </td>
+                        <td>
+                            <span class="status-badge status-@p.Status.ToLower()">
+                                <span class="status-dot"></span>
+                                @p.Status
+                            </span>
+                        </td>
+                        <td class="col-actions">
+                            <button class="action-btn" aria-label="View proposal" title="View details" @onclick="() => OpenViewModal(p)">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            </button>
+                        </td>
+                    </tr>
+                }
+            }
+            else
+            {
+                <tr>
+                    <td colspan="7" class="empty-state">No proposals found.</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- New Proposal Modal -->
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <h2 class="modal-title">New Ministry Proposal</h2>
+
+            <div class="modal-field">
+                <label class="modal-label">Purpose</label>
+                <input type="text" class="modal-input" placeholder="Brief purpose of this proposal"
+                       @bind="newPurpose" />
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label">Description (Optional)</label>
+                <textarea class="modal-input modal-textarea" placeholder="Additional details..."
+                          @bind="newDescription" rows="3"></textarea>
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label class="modal-label">Ministry</label>
+                    <select class="modal-select" @bind="newMinistryId">
+                        <option value="0">-- Select Ministry --</option>
+                        @foreach (var m in ministries)
+                        {
+                            <option value="@m.MinistryId">@m.MinistryName</option>
+                        }
+                    </select>
+                </div>
+                <div class="modal-field">
+                    <label class="modal-label">Level</label>
+                    <div class="modal-level-fixed">Ministry</div>
+                </div>
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label">Amount ($)</label>
+                <input type="number" class="modal-input" step="0.01" min="0" placeholder="0.00"
+                       @bind="newAmount" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <p class="modal-error">@modalError</p>
+            }
+
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" @onclick="CloseModal">Cancel</button>
+                <button class="modal-btn-save" @onclick="SaveProposal" disabled="@isSaving">
+                    @(isSaving ? "Submitting..." : "Submit Proposal")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- View Proposal Modal -->
+@if (showViewModal && viewProposal != null)
+{
+    <div class="modal-overlay" @onclick="CloseViewModal">
+        <div class="modal-card" @onclick:stopPropagation="true">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                <h2 class="modal-title">Proposal Details</h2>
+                <span class="status-badge status-@viewProposal.Status.ToLower()">
+                    <span class="status-dot"></span>
+                    @viewProposal.Status
+                </span>
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label">Proposal ID</label>
+                <div class="modal-view-value">@viewProposal.ProposalCode</div>
+            </div>
+
+            <div class="modal-field">
+                <label class="modal-label">Purpose</label>
+                <div class="modal-view-value">@viewProposal.Purpose</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(viewProposal.Description))
+            {
+                <div class="modal-field">
+                    <label class="modal-label">Description</label>
+                    <div class="modal-view-value" style="white-space:pre-wrap;">@viewProposal.Description</div>
+                </div>
+            }
+
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label class="modal-label">Ministry</label>
+                    <div class="modal-view-value">@viewProposal.Ministry?.MinistryName</div>
+                </div>
+                <div class="modal-field">
+                    <label class="modal-label">Level</label>
+                    <div class="modal-view-value">@viewProposal.Level</div>
+                </div>
+            </div>
+
+            <div class="modal-row">
+                <div class="modal-field">
+                    <label class="modal-label">Amount</label>
+                    <div class="modal-view-value">$@viewProposal.Amount.ToString("N2")</div>
+                </div>
+                <div class="modal-field">
+                    <label class="modal-label">Submitted On</label>
+                    <div class="modal-view-value">@viewProposal.CreatedAt.ToString("MMM d, yyyy")</div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="modal-btn-cancel" @onclick="CloseViewModal">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<BudgetProposal> allProposals = new();
+    private List<BudgetProposal> myProposals = new();
+    private List<Ministry> ministries = new();
+    private string activeSubTab = "mine";
+    private string searchQuery = "";
+    private string statusFilter = "";
+    private int ministryFilter = 0;
+
+    // View modal state
+    private bool showViewModal = false;
+    private BudgetProposal? viewProposal = null;
+
+    private void OpenViewModal(BudgetProposal proposal)
+    {
+        viewProposal = proposal;
+        showViewModal = true;
+    }
+
+    private void CloseViewModal()
+    {
+        showViewModal = false;
+        viewProposal = null;
+    }
+
+    // New proposal modal state
+    private bool showModal = false;
+    private bool isSaving = false;
+    private string newPurpose = "";
+    private string newDescription = "";
+    private int newMinistryId = 0;
+    private decimal newAmount = 0;
+    private string modalError = "";
+    private int currentProfileId = 0;
+    private int currentChurchId = 0;
+    private int? currentDistrictId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var accountIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (accountIdClaim != null && int.TryParse(accountIdClaim.Value, out int accountId))
+        {
+            var account = await Db.Accounts
+                .Include(a => a.Church)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId);
+            currentProfileId = account?.ProfileId ?? 0;
+            currentChurchId = account?.ChurchId ?? 0;
+            currentDistrictId = account?.Church?.DistrictId;
+        }
+
+        await LoadProposals();
+
+        ministries = await Db.Set<Ministry>()
+            .Where(m => m.Status == "Active")
+            .OrderBy(m => m.MinistryName)
+            .ToListAsync();
+    }
+
+    private async Task LoadProposals()
+    {
+        var query = Db.Set<BudgetProposal>()
+            .Include(p => p.Ministry)
+            .Include(p => p.SubmittedBy)
+            .OrderByDescending(p => p.CreatedAt);
+
+        allProposals = currentChurchId > 0
+            ? await query.Where(p => p.ChurchId == currentChurchId).ToListAsync()
+            : await query.ToListAsync();
+
+        myProposals = allProposals.Where(p => p.SubmittedById == currentProfileId).ToList();
+    }
+
+    private void OpenModal()
+    {
+        newPurpose = "";
+        newDescription = "";
+        newMinistryId = ministries.FirstOrDefault()?.MinistryId ?? 0;
+        newAmount = 0;
+        modalError = "";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        modalError = "";
+    }
+
+    private async Task SaveProposal()
+    {
+        modalError = "";
+        if (string.IsNullOrWhiteSpace(newPurpose)) { modalError = "Purpose is required."; return; }
+        if (newMinistryId == 0) { modalError = "Please select a ministry."; return; }
+        if (newAmount <= 0) { modalError = "Amount must be greater than zero."; return; }
+        if (currentProfileId == 0) { modalError = "Unable to identify current user."; return; }
+
+        isSaving = true;
+
+        var lastCode = await Db.BudgetProposals
+            .OrderByDescending(p => p.ProposalId)
+            .Select(p => p.ProposalCode)
+            .FirstOrDefaultAsync();
+
+        int nextNum = 1001;
+        if (lastCode != null && lastCode.StartsWith("BP-") && int.TryParse(lastCode[3..], out int parsed))
+            nextNum = parsed + 1;
+
+        var proposal = new BudgetProposal
+        {
+            ProposalCode = $"BP-{nextNum}",
+            Purpose = newPurpose.Trim(),
+            Description = string.IsNullOrWhiteSpace(newDescription) ? null : newDescription.Trim(),
+            MinistryId = newMinistryId,
+            ChurchId = currentChurchId > 0 ? currentChurchId : null,
+            DistrictId = currentDistrictId,
+            Level = "Ministry",
+            Amount = newAmount,
+            Status = "Pending",
+            SubmittedById = currentProfileId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Db.BudgetProposals.Add(proposal);
+        await Db.SaveChangesAsync();
+
+        await LoadProposals();
+
+        isSaving = false;
+        showModal = false;
+    }
+
+    private List<BudgetProposal> filteredProposals
+    {
+        get
+        {
+            var source = activeSubTab == "mine" ? myProposals : allProposals;
+
+            var results = source.AsEnumerable();
+
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var q = searchQuery.Trim().ToLower();
+                results = results.Where(p =>
+                    p.ProposalCode.ToLower().Contains(q) ||
+                    p.Purpose.ToLower().Contains(q) ||
+                    (p.Ministry?.MinistryName ?? "").ToLower().Contains(q));
+            }
+
+            if (!string.IsNullOrEmpty(statusFilter))
+                results = results.Where(p => p.Status == statusFilter);
+
+            if (ministryFilter > 0)
+                results = results.Where(p => p.MinistryId == ministryFilter);
+
+            return results.ToList();
+        }
+    }
+}

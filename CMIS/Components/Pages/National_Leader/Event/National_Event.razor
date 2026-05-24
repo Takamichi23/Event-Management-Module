@@ -1,0 +1,87 @@
+@page "/national-leader/attendance"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.BODEventService BODEventService
+@inject NavigationManager NavManager
+
+<div style="padding: 24px;">
+    <header class="hp-header">
+        <h1>My Assignments</h1>
+        <div class="hp-header-right">
+            <div class="profile-card">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" class="profile-img" />
+                <div class="profile-info">
+                    <span class="name">National Leader</span>
+                    <span class="role">National Leader</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-view-card">
+        <div style="margin-bottom:24px;">
+            <h2 style="font-size:20px; color:#062b63; font-weight:700; margin-bottom:8px;">Assigned National Events</h2>
+            <p style="color:#64748b; font-size:14px;">View and manage attendance for national events you have been assigned to coordinate.</p>
+        </div>
+
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap:24px;">
+            @if (!assignedEvents.Any())
+            {
+                <div style="grid-column: 1 / -1; padding:60px; text-align:center; background:#f8fafc; border-radius:16px; border:1px dashed #cbd5e1;">
+                    <i class="fas fa-calendar-times" style="font-size:48px; color:#cbd5e1; margin-bottom:16px;"></i>
+                    <h3 style="color:#64748b; font-weight:600;">No assignments found</h3>
+                    <p style="color:#94a3b8; font-size:14px;">Contact the Leadership Council for event assignments.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var ev in assignedEvents)
+                {
+                    <div class="event-card" style="background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:24px; box-shadow:0 4px 6px rgba(0,0,0,0.02); display:flex; flex-direction:column; gap:16px;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                            <div style="background:#eff6ff; color:#3b82f6; padding:4px 12px; border-radius:20px; font-size:11px; font-weight:700; text-transform:uppercase;">
+                                @ev.Category
+                            </div>
+                            <div style="font-size:12px; font-weight:600; color:#64748b;">
+                                <i class="far fa-calendar-alt"></i> @ev.Date.ToString("MMM dd, yyyy")
+                            </div>
+                        </div>
+
+                        <h3 style="font-size:18px; font-weight:700; color:#0f172a; margin:0;">@ev.Title</h3>
+                        
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                            <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569;">
+                                <i class="fas fa-map-marker-alt" style="color:#062b63; width:16px;"></i> @ev.Venue
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px; font-size:13px; color:#475569;">
+                                <i class="far fa-clock" style="color:#062b63; width:16px;"></i> @ev.StartTime.ToString("hh:mm tt") - @ev.EndTime.ToString("hh:mm tt")
+                            </div>
+                        </div>
+
+                        <div style="margin-top:auto; padding-top:16px; border-top:1px solid #f1f5f9;">
+                            <button @onclick="() => NavigateToAttendance(ev.Id)" style="width:100%; padding:12px; background:#062b63; color:#fff; border:none; border-radius:10px; font-weight:600; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                <i class="fas fa-clipboard-check"></i> Open Attendance Tracker
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<BODEventModel> assignedEvents = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BODEventService.LoadEventsAsync();
+        // Show events that have an assigned leader and are not ended/rejected.
+        assignedEvents = BODEventService.Events
+            .Where(e => (e.Status == "Published" || e.Status == "In Progress" || e.Status == "Ended" || e.Status == "Approved" || e.Status == "Rescheduled" || e.Status == "Planned Event") && e.AssignedLeaderId != null)
+            .ToList();
+    }
+
+    private void NavigateToAttendance(int id) => NavManager.NavigateTo($"/national-attendance/{id}");
+}

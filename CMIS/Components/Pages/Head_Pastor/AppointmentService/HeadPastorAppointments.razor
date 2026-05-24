@@ -1,0 +1,480 @@
+@page "/head-pastor/appointments"
+@layout CMIS.Components.Layout.DashboardLayout
+@rendermode InteractiveServer
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text
+
+<PageTitle>Appointment Management — CMIS Portal</PageTitle>
+<HeadContent>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</HeadContent>
+
+<div class="hp-appointments">
+
+    <!-- STATS CARDS -->
+    <div class="stats-row">
+        <div class="stat-card pending-card">
+            <div class="stat-icon"><i class="fas fa-clock"></i></div>
+            <div class="stat-info">
+                <span class="stat-num">@appointments.Count(a => ResolveStatus(a.Status) == "Pending")</span>
+                <span class="stat-label">Pending</span>
+            </div>
+        </div>
+        <div class="stat-card confirmed-card">
+            <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+            <div class="stat-info">
+                <span class="stat-num">@appointments.Count(a => ResolveStatus(a.Status) == "Confirmed")</span>
+                <span class="stat-label">Confirmed</span>
+            </div>
+        </div>
+        <div class="stat-card rescheduled-card">
+            <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+            <div class="stat-info">
+                <span class="stat-num">@appointments.Count(a => ResolveStatus(a.Status) == "Rescheduled")</span>
+                <span class="stat-label">Rescheduled</span>
+            </div>
+        </div>
+        <div class="stat-card total-card">
+            <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
+            <div class="stat-info">
+                <span class="stat-num">@appointments.Count</span>
+                <span class="stat-label">Total</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GRID: Calendar + Incoming -->
+    <div class="main-grid">
+
+        <!-- CALENDAR -->
+        <div class="calendar-panel glass-card">
+            <div class="panel-header">
+                <h3><i class="fas fa-calendar"></i> Calendar</h3>
+                <div class="cal-nav">
+                    <button @onclick="PrevMonth"><i class="fas fa-chevron-left"></i></button>
+                    <span class="cal-month">@calendarDate.ToString("MMMM yyyy")</span>
+                    <button @onclick="NextMonth"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+            <div class="cal-grid">
+                <div class="cal-dow">Sun</div><div class="cal-dow">Mon</div><div class="cal-dow">Tue</div>
+                <div class="cal-dow">Wed</div><div class="cal-dow">Thu</div><div class="cal-dow">Fri</div><div class="cal-dow">Sat</div>
+                @foreach (var day in CalendarDays)
+                {
+                    var hasApt = day.HasValue && appointments.Any(a => DateTime.TryParse(a.Date, out var d) && d.Date == new DateTime(calendarDate.Year, calendarDate.Month, day.Value));
+                    var isSelected = day.HasValue && selectedCalendarDay == day.Value;
+                    var isToday = day.HasValue && new DateTime(calendarDate.Year, calendarDate.Month, day.Value) == DateTime.Today;
+                    <div class="cal-cell @(day.HasValue ? "has-day" : "") @(hasApt ? "has-apt" : "") @(isSelected ? "selected" : "") @(isToday ? "today" : "")"
+                         @onclick="() => { if(day.HasValue) SelectDay(day.Value); }">
+                        @if (day.HasValue)
+                        {
+                            <span>@day.Value</span>
+                            @if (hasApt) { <div class="apt-dot"></div> }
+                        }
+                    </div>
+                }
+            </div>
+            @if (selectedCalendarDay > 0)
+            {
+                var selDate = new DateTime(calendarDate.Year, calendarDate.Month, selectedCalendarDay);
+                var dayApts = appointments.Where(a => DateTime.TryParse(a.Date, out var d) && d.Date == selDate).ToList();
+                <div class="day-detail">
+                    <h4>@selDate.ToString("MMM dd, yyyy")</h4>
+                    @if (dayApts.Count == 0)
+                    {
+                        <p class="no-apt">No appointments</p>
+                    }
+                    else
+                    {
+                        <div class="day-apt-list" style="max-height: 250px; overflow-y: auto; padding-right: 0.5rem;">
+                            @foreach (var apt in dayApts)
+                            {
+                                <div class="incoming-item" style="border: 1px solid #f0f3f7; margin-bottom: 0.5rem; padding: 0.6rem;" @onclick="() => ShowDetail(apt)">
+                                    <div class="inc-left">
+                                        <div class="inc-icon"><i class="@GetServiceIcon(ResolveServiceType(apt.ServiceType))"></i></div>
+                                        <div>
+                                            <div class="inc-svc">@FormatServiceType(ResolveServiceType(apt.ServiceType))</div>
+                                            <div class="inc-req">@apt.RequesterName</div>
+                                        </div>
+                                    </div>
+                                    <div class="inc-right">
+                                        <div class="inc-date" style="font-size: 0.75rem; margin-bottom: 0.3rem; margin-top: 0;"><i class="far fa-clock"></i> @apt.StartTime - @apt.EndTime</div>
+                                        <span class="status-pill sm @GetStatusClass(ResolveStatus(apt.Status))">@ResolveStatus(apt.Status)</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- INCOMING APPOINTMENTS -->
+        <div class="incoming-panel glass-card">
+            <div class="panel-header">
+                <h3><i class="fas fa-inbox"></i> Incoming Appointments</h3>
+            </div>
+            @if (isLoading)
+            {
+                <div class="loading-state"><div class="spinner"></div><p>Loading...</p></div>
+            }
+            else
+            {
+                var incoming = appointments
+                    .Where(a => ResolveStatus(a.Status) == "Pending" || ResolveStatus(a.Status) == "Confirmed")
+                    .OrderBy(a => a.Date).Take(8).ToList();
+                @if (incoming.Count == 0)
+                {
+                    <div class="empty-mini"><i class="fas fa-check-double"></i><p>No incoming appointments</p></div>
+                }
+                else
+                {
+                    <div class="incoming-list">
+                        @foreach (var apt in incoming)
+                        {
+                            <div class="incoming-item" @onclick="() => ShowDetail(apt)">
+                                <div class="inc-left">
+                                    <div class="inc-icon"><i class="@GetServiceIcon(ResolveServiceType(apt.ServiceType))"></i></div>
+                                    <div>
+                                        <div class="inc-svc">@FormatServiceType(ResolveServiceType(apt.ServiceType))</div>
+                                        <div class="inc-req">@apt.RequesterName</div>
+                                    </div>
+                                </div>
+                                <div class="inc-right">
+                                    <div class="inc-date">@FormatDate(apt.Date)</div>
+                                    <div class="inc-date" style="font-size: 0.7rem; margin-top: 0.1rem;"><i class="far fa-clock"></i> @apt.StartTime - @apt.EndTime</div>
+                                    <span class="status-pill sm @GetStatusClass(ResolveStatus(apt.Status))">@ResolveStatus(apt.Status)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- FULL APPOINTMENT TABLE -->
+    <div class="table-section glass-card">
+        <div class="panel-header">
+            <h3><i class="fas fa-list"></i> All Appointments</h3>
+        </div>
+        <div class="filter-tabs">
+            @foreach (var f in new[] { "all", "pending", "confirmed", "rescheduled", "cancelled", "complete" })
+            {
+                <button class="filter-tab @(activeFilter == f ? "active" : "")" @onclick="() => activeFilter = f">
+                    @(f == "all" ? "All" : char.ToUpper(f[0]) + f[1..])
+                    <span class="tab-count">@(f == "all" ? appointments.Count : appointments.Count(a => ResolveStatus(a.Status).Equals(f, StringComparison.OrdinalIgnoreCase)))</span>
+                </button>
+            }
+        </div>
+
+        @if (!string.IsNullOrEmpty(loadError))
+        {
+            <div class="error-banner"><i class="fas fa-exclamation-triangle"></i> @loadError
+                <button class="btn-retry" @onclick="LoadAppointments">Retry</button></div>
+        }
+        else if (FilteredAppointments.Count == 0)
+        {
+            <div class="empty-mini"><i class="fas fa-calendar-xmark"></i><p>No @(activeFilter == "all" ? "" : activeFilter) appointments found.</p></div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="apt-table">
+                    <thead>
+                        <tr><th>ID</th><th>Service</th><th>Date</th><th>Status</th><th>Requester</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var apt in FilteredAppointments)
+                        {
+                            <tr class="apt-row" @onclick="() => ShowDetail(apt)">
+                                <td class="id-cell">#@apt.AppointmentId</td>
+                                <td><div class="svc-badge"><i class="@GetServiceIcon(ResolveServiceType(apt.ServiceType))"></i> @FormatServiceType(ResolveServiceType(apt.ServiceType))</div></td>
+                                <td>
+                                    <div>@FormatDate(apt.Date)</div>
+                                    <div style="font-size: 0.75rem; color: #7f8c9b; margin-top: 0.2rem;"><i class="far fa-clock"></i> @apt.StartTime - @apt.EndTime</div>
+                                </td>
+                                <td><span class="status-pill @GetStatusClass(ResolveStatus(apt.Status))">@ResolveStatus(apt.Status)</span></td>
+                                <td>@apt.RequesterName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
+
+<!-- DETAIL MODAL -->
+@if (showDetail && selectedApt != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetail">
+        <div class="modal-content @(showReschedule ? "wide" : "")" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title"><i class="fas fa-calendar-check"></i> Appointment #@selectedApt.AppointmentId</h2>
+                <button class="modal-close" @onclick="CloseDetail"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(actionMsg))
+                {
+                    <div class="action-msg @(actionSuccess ? "success" : "error")">
+                        <i class="fas @(actionSuccess ? "fa-check-circle" : "fa-exclamation-circle")"></i> @actionMsg
+                    </div>
+                }
+
+                @if (!showReschedule)
+                {
+                    <div class="detail-grid">
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-church"></i> Church</span><span class="d-value">@selectedApt.ChurchName</span></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-map-marker-alt"></i> Address</span><span class="d-value">@selectedApt.ChurchAddress</span></div>
+                        <div class="detail-divider"></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-concierge-bell"></i> Service</span><span class="d-value">@FormatServiceType(ResolveServiceType(selectedApt.ServiceType))</span></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-calendar-day"></i> Date</span><span class="d-value">@FormatDate(selectedApt.Date)</span></div>
+                        <div class="detail-row"><span class="d-label"><i class="far fa-clock"></i> Time</span><span class="d-value">@selectedApt.StartTime - @selectedApt.EndTime</span></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-info-circle"></i> Status</span><span class="d-value"><span class="status-pill @GetStatusClass(ResolveStatus(selectedApt.Status))">@ResolveStatus(selectedApt.Status)</span></span></div>
+                        <div class="detail-divider"></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-user"></i> Requester</span><span class="d-value">@selectedApt.RequesterName</span></div>
+                        <div class="detail-row"><span class="d-label"><i class="fas fa-user-tie"></i> Assigned To</span><span class="d-value">@selectedApt.AssignedToName</span></div>
+                    </div>
+
+                    <!-- ACTION BUTTONS -->
+                    <div class="action-bar">
+                        @if (ResolveStatus(selectedApt.Status) != "Cancelled" && ResolveStatus(selectedApt.Status) != "Complete")
+                        {
+                            @if (ResolveStatus(selectedApt.Status) == "Pending")
+                            {
+                                <button class="btn-action confirm" @onclick="ConfirmAppointment" disabled="@isActioning">
+                                    <i class="fas fa-check"></i> Confirm
+                                </button>
+                            }
+                            <button class="btn-action reschedule" @onclick="OpenReschedule" disabled="@isActioning">
+                                <i class="fas fa-calendar-alt"></i> Reschedule
+                            </button>
+                            <button class="btn-action cancel" @onclick="CancelAppointment" disabled="@isActioning">
+                                <i class="fas fa-ban"></i> Cancel
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- RESCHEDULE FLOW -->
+                    <h4 class="resched-title"><i class="fas fa-calendar-alt"></i> Select New Date & Time</h4>
+                    
+                    <div class="reschedule-form">
+                        <div class="form-group">
+                            <label>Date</label>
+                            <input type="date" @bind="rescheduleDate" min="@DateTime.Today.ToString("yyyy-MM-dd")" class="form-control" />
+                        </div>
+                        <div class="form-group-row">
+                            <div class="form-group">
+                                <label>Start Time</label>
+                                <input type="time" @bind="rescheduleStartTime" class="form-control" />
+                            </div>
+                            <div class="form-group">
+                                <label>End Time</label>
+                                <input type="time" @bind="rescheduleEndTime" class="form-control" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="action-bar">
+                        <button class="btn-action secondary" @onclick="() => showReschedule = false"><i class="fas fa-arrow-left"></i> Back</button>
+                        <button class="btn-action confirm" disabled="@isActioning" @onclick="ConfirmReschedule">
+                            @if (isActioning) { <div class="spinner-sm"></div> <span>Saving...</span> }
+                            else { <i class="fas fa-check"></i> <span>Confirm Reschedule</span> }
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string ApiBase = "http://localhost:5096";
+    private const int PastorAccountId = 3;
+
+    private static readonly string[] ServiceTypeNames = { "Funeral", "Baptism", "Counsel", "Wedding", "ChildDedication" };
+    private static readonly string[] StatusNames = { "Pending", "Confirmed", "Rescheduled", "Cancelled", "Complete" };
+
+    private List<AppointmentDto> appointments = new();
+    private string activeFilter = "all";
+    private bool isLoading = true;
+    private string? loadError;
+
+    // Calendar
+    private DateTime calendarDate = DateTime.Today;
+    private int selectedCalendarDay = 0;
+
+    // Detail modal
+    private bool showDetail = false;
+    private AppointmentDto? selectedApt;
+    private bool isActioning = false;
+    private string? actionMsg;
+    private bool actionSuccess;
+
+    // Reschedule
+    private bool showReschedule = false;
+    private DateTime rescheduleDate = DateTime.Today;
+    private TimeOnly rescheduleStartTime = new TimeOnly(9, 0, 0);
+    private TimeOnly rescheduleEndTime = new TimeOnly(10, 0, 0);
+
+    private string ResolveServiceType(int val) => val >= 0 && val < ServiceTypeNames.Length ? ServiceTypeNames[val] : $"Unknown({val})";
+    private string ResolveStatus(int val) => val >= 0 && val < StatusNames.Length ? StatusNames[val] : $"Unknown({val})";
+
+    private List<AppointmentDto> FilteredAppointments =>
+        activeFilter == "all" ? appointments
+        : appointments.Where(a => ResolveStatus(a.Status).Equals(activeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // Calendar helpers
+    private List<int?> CalendarDays
+    {
+        get
+        {
+            var days = new List<int?>();
+            var first = new DateTime(calendarDate.Year, calendarDate.Month, 1);
+            for (int i = 0; i < (int)first.DayOfWeek; i++) days.Add(null);
+            for (int d = 1; d <= DateTime.DaysInMonth(calendarDate.Year, calendarDate.Month); d++) days.Add(d);
+            while (days.Count % 7 != 0) days.Add(null);
+            return days;
+        }
+    }
+
+    private void PrevMonth() { calendarDate = calendarDate.AddMonths(-1); selectedCalendarDay = 0; }
+    private void NextMonth() { calendarDate = calendarDate.AddMonths(1); selectedCalendarDay = 0; }
+    private void SelectDay(int day) { selectedCalendarDay = selectedCalendarDay == day ? 0 : day; }
+
+    protected override async Task OnInitializedAsync() => await LoadAppointments();
+
+    private async Task LoadAppointments()
+    {
+        isLoading = true; loadError = null; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            appointments = await http.GetFromJsonAsync<List<AppointmentDto>>($"{ApiBase}/Appointment/assigned/{PastorAccountId}", opts) ?? new();
+        }
+        catch (Exception ex) { loadError = $"Could not connect to the API. ({ex.Message})"; }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private void ShowDetail(AppointmentDto apt)
+    {
+        selectedApt = apt; showDetail = true; showReschedule = false;
+        actionMsg = null; 
+    }
+    private void CloseDetail() { showDetail = false; selectedApt = null; showReschedule = false; }
+
+    private async Task ConfirmAppointment() => await UpdateStatus("Confirmed");
+    private async Task CancelAppointment() => await UpdateStatus("Cancelled");
+
+    private async Task UpdateStatus(string newStatus)
+    {
+        if (selectedApt == null) return;
+        isActioning = true; actionMsg = null; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            var payload = new { requesterId = 0, assignedToId = PastorAccountId, serviceType = ResolveServiceType(selectedApt.ServiceType),
+                status = newStatus, date = selectedApt.Date, startTime = "00:00:00", endTime = "00:00:00" };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await http.PutAsync($"{ApiBase}/Appointment/update/{selectedApt.AppointmentId}", content);
+            if (resp.IsSuccessStatusCode)
+            {
+                actionMsg = $"Appointment {newStatus.ToLower()} successfully!"; actionSuccess = true;
+                await LoadAppointments();
+                selectedApt = appointments.FirstOrDefault(a => a.AppointmentId == selectedApt.AppointmentId);
+            }
+            else
+            {
+                var err = await resp.Content.ReadAsStringAsync();
+                try { var o = JsonSerializer.Deserialize<ApiError>(err, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); actionMsg = o?.Message ?? "Action failed."; }
+                catch { actionMsg = $"Action failed (HTTP {(int)resp.StatusCode})."; }
+                actionSuccess = false;
+            }
+        }
+        catch (Exception ex) { actionMsg = $"Connection error. ({ex.Message})"; actionSuccess = false; }
+        finally { isActioning = false; StateHasChanged(); }
+    }
+
+    private void OpenReschedule()
+    {
+        showReschedule = true; 
+        actionMsg = null; 
+        
+        // Initialize with appointment's current date/time if available, otherwise defaults
+        if (selectedApt != null && DateTime.TryParse(selectedApt.Date, out var dt))
+        {
+            rescheduleDate = dt;
+        }
+        else
+        {
+            rescheduleDate = DateTime.Today;
+        }
+        rescheduleStartTime = new TimeOnly(9, 0, 0);
+        rescheduleEndTime = new TimeOnly(10, 0, 0);
+    }
+
+    private async Task ConfirmReschedule()
+    {
+        if (selectedApt == null) return;
+        
+        if (rescheduleStartTime >= rescheduleEndTime)
+        {
+            actionMsg = "Start time must be before end time.";
+            actionSuccess = false;
+            return;
+        }
+
+        isActioning = true; actionMsg = null; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            var payload = new { 
+                requesterId = 0, 
+                assignedToId = PastorAccountId, 
+                serviceType = ResolveServiceType(selectedApt.ServiceType),
+                status = "Rescheduled", 
+                date = rescheduleDate.ToString("yyyy-MM-dd"), 
+                startTime = rescheduleStartTime.ToString(@"HH\:mm\:ss"), 
+                endTime = rescheduleEndTime.ToString(@"HH\:mm\:ss") 
+            };
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var resp = await http.PutAsync($"{ApiBase}/Appointment/update/{selectedApt.AppointmentId}", content);
+            if (resp.IsSuccessStatusCode)
+            {
+                actionMsg = "Appointment rescheduled successfully!"; actionSuccess = true;
+                showReschedule = false;
+                await LoadAppointments();
+                selectedApt = appointments.FirstOrDefault(a => a.AppointmentId == selectedApt.AppointmentId);
+            }
+            else
+            {
+                var err = await resp.Content.ReadAsStringAsync();
+                try { var o = JsonSerializer.Deserialize<ApiError>(err, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); actionMsg = o?.Message ?? "Reschedule failed."; }
+                catch { actionMsg = $"Reschedule failed (HTTP {(int)resp.StatusCode})."; }
+                actionSuccess = false;
+            }
+        }
+        catch (Exception ex) { actionMsg = $"Connection error. ({ex.Message})"; actionSuccess = false; }
+        finally { isActioning = false; StateHasChanged(); }
+    }
+
+    // Helpers
+    private string GetStatusClass(string s) => s.ToLower() switch { "pending" => "status-pending", "confirmed" => "status-confirmed", "rescheduled" => "status-rescheduled", "cancelled" => "status-cancelled", "complete" => "status-complete", _ => "" };
+    private string GetServiceIcon(string s) => s?.ToLower() switch { "wedding" => "fas fa-heart", "baptism" => "fas fa-water", "funeral" => "fas fa-cross", "counsel" => "fas fa-comments", "childdedication" => "fas fa-baby", _ => "fas fa-concierge-bell" };
+    private string FormatServiceType(string t) => t == "ChildDedication" ? "Child Dedication" : t ?? "";
+    private string FormatDate(string? d) { if (string.IsNullOrEmpty(d)) return ""; return DateTime.TryParse(d, out var dt) ? dt.ToString("MMM dd, yyyy (ddd)") : d; }
+
+    // DTOs
+    public class AppointmentDto { public int AppointmentId { get; set; } public int ServiceType { get; set; } public int Status { get; set; } public string Date { get; set; } = ""; public string StartTime { get; set; } = ""; public string EndTime { get; set; } = ""; public string RequesterName { get; set; } = ""; public string AssignedToName { get; set; } = ""; public string ChurchName { get; set; } = ""; public string ChurchAddress { get; set; } = ""; }
+    public class ScheduleDto { public string Date { get; set; } = ""; public string StartTime { get; set; } = ""; public string EndTime { get; set; } = ""; public int AssignedToId { get; set; } }
+    public class ApiError { public string Message { get; set; } = ""; }
+}

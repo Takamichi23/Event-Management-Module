@@ -1,0 +1,13 @@
+.page-heading { margin-bottom: 1.5rem; }
+.page-title { font-family: 'Outfit', sans-serif; font-weight: 800; font-size: 1.65rem; color: #0d2137; margin: 0 0 0.3rem; }
+.page-subtitle { font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #6b7c93; margin: 0; }
+
+.coming-soon {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 5rem 1rem; gap: 1rem;
+    background: #fff; border: 1px solid #e8ecf1; border-radius: 12px;
+}
+
+.coming-soon-text {
+    font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #8e99a4; margin: 0;
+}

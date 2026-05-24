@@ -1,0 +1,176 @@
+@page "/district-head/events"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.DistrictEventService DistrictEventService
+@inject NavigationManager NavManager
+
+<div style="padding: 24px;">
+    <header class="hp-header">
+        <h1>District Events & Programs</h1>
+        <div class="hp-header-right">
+            <div class="notif-bell">
+                <i class="far fa-bell"></i>
+                <span class="notif-badge">0</span>
+            </div>
+            <div class="profile-card">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" class="profile-img" />
+                <div class="profile-info">
+                    <span class="name">District Head</span>
+                    <span class="role">District Head</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-view-card">
+        <div class="header-row">
+            <div style="flex:1;">
+                @if (ViewMode == "list")
+                {
+                    <div class="search-wrapper">
+                        <i class="fas fa-search" style="position:absolute; left:20px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none;"></i>
+                        <input type="text" class="search-input" placeholder="Search for District Event" @bind="searchText" @bind:event="oninput" />
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex; align-items:center; gap:16px;">
+                        <button class="circle-btn" @onclick="PrevMonth" style="width:36px; height:36px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer; transition: all 0.2s;"><i class="fas fa-chevron-left" style="font-size:14px;"></i></button>
+                        
+                        <div class="month-display" @onclick="GoToToday" style="font-size:20px; font-weight:700; color:#062b63; display:flex; align-items:center; gap:8px; cursor:pointer; min-width:160px; justify-content:center;">
+                            @viewDate.ToString("MMMM yyyy") <i class="fas fa-chevron-down" style="font-size:14px;"></i>
+                        </div>
+
+                        <button class="circle-btn" @onclick="NextMonth" style="width:36px; height:36px; border-radius:50%; border:1px solid #cbd5e1; background:#fff; display:flex; align-items:center; justify-content:center; color:#64748b; cursor:pointer; transition: all 0.2s;"><i class="fas fa-chevron-right" style="font-size:14px;"></i></button>
+                    </div>
+                }
+            </div>
+
+            <div class="controls-right">
+                <div class="toggle-group">
+                    <button class="toggle-btn @(ViewMode == "list" ? "active" : "inactive")" @onclick="@(()=>ViewMode = "list")">
+                        <i class="fas fa-list"></i> List
+                    </button>
+                    <button class="toggle-btn @(ViewMode == "calendar" ? "active" : "inactive")" @onclick="@(()=>ViewMode = "calendar")">
+                        <i class="far fa-calendar-alt"></i> Calendar
+                    </button>
+                </div>
+                
+                <button class="circle-btn" @onclick="NavigateToForm">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+        </div>
+
+        @if (ViewMode == "list")
+        {
+            <!-- Status Tabs -->
+            <div style="display:flex; background:#f8fafc; border:1px solid #e2e8f0; border-radius:30px; padding:6px; margin-bottom:24px; overflow-x:auto; gap:4px;">
+                <button @onclick="@(() => currentStatus = "Planned Event")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Planned Event" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Planned Event" ? "700" : "600"); color:@(currentStatus == "Planned Event" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Planned Event" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-edit" style="color:@(currentStatus == "Planned Event" ? "#6366f1" : "inherit");"></i> Planned (@eventsList.Count(e => e.Status == "Planned Event"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Under Review")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Under Review" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Under Review" ? "700" : "600"); color:@(currentStatus == "Under Review" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Under Review" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-hourglass-half" style="color:@(currentStatus == "Under Review" ? "#d97706" : "inherit");"></i> Review (@eventsList.Count(e => e.Status == "Under Review"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Approved")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Approved" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Approved" ? "700" : "600"); color:@(currentStatus == "Approved" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Approved" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-check-circle" style="color:@(currentStatus == "Approved" ? "#10b981" : "inherit");"></i> Approved (@eventsList.Count(e => e.Status == "Approved"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Published")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Published" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Published" ? "700" : "600"); color:@(currentStatus == "Published" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Published" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-globe" style="color:@(currentStatus == "Published" ? "#3b82f6" : "inherit");"></i> Published (@eventsList.Count(e => e.Status == "Published"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Rejected")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Rejected" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Rejected" ? "700" : "600"); color:@(currentStatus == "Rejected" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Rejected" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-times-circle" style="color:@(currentStatus == "Rejected" ? "#ef4444" : "inherit");"></i> Rejected (@eventsList.Count(e => e.Status == "Rejected"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Ended")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Ended" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Ended" ? "700" : "600"); color:@(currentStatus == "Ended" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Ended" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-flag-checkered" style="color:@(currentStatus == "Ended" ? "#475569" : "inherit");"></i> Ended (@eventsList.Count(e => e.Status == "Ended"))
+                </button>
+                <button @onclick="@(() => currentStatus = "Rescheduled")" style="flex:1; padding:10px 24px; border:none; border-radius:24px; background:@(currentStatus == "Rescheduled" ? "#fff" : "transparent"); font-weight:@(currentStatus == "Rescheduled" ? "700" : "600"); color:@(currentStatus == "Rescheduled" ? "#0f172a" : "#94a3b8"); box-shadow:@(currentStatus == "Rescheduled" ? "0 1px 3px rgba(0,0,0,0.1)" : "none"); font-size:14px; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <i class="fas fa-calendar-alt" style="color:@(currentStatus == "Rescheduled" ? "#8b5cf6" : "inherit");"></i> Rescheduled (@eventsList.Count(e => e.Status == "Rescheduled"))
+                </button>
+            </div>
+
+            <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap:24px;">
+                @foreach(var ev in FilteredEvents)
+                {
+                    <div class="event-card" style="border:1px solid #e2e8f0; border-radius:16px; overflow:hidden; background:#fff; display:flex; flex-direction:column; box-shadow:0 4px 6px rgba(0,0,0,0.02);">
+                        <div class="event-image-wrapper" style="position:relative;">
+                            <img src="@(!string.IsNullOrEmpty(ev.ImageUrl) ? ev.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80")" class="event-image" style="width:100%; height:180px; object-fit:cover;" />
+                            <div style="position:absolute; top:12px; right:12px; background:@GetStatusColor(ev.Status).bg; color:@GetStatusColor(ev.Status).text; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:6px; box-shadow:0 2px 4px rgba(0,0,0,0.1); border:1px solid @GetStatusColor(ev.Status).border;">
+                                <div style="width:8px; height:8px; border-radius:50%; background:@GetStatusColor(ev.Status).text;"></div> @ev.Status
+                            </div>
+                        </div>
+                        <div style="padding:24px; flex:1; display:flex; flex-direction:column;">
+                            <h3 class="event-title" style="margin:0 0 8px 0; font-size:18px; color:#062b63; font-weight:700;">@ev.Title</h3>
+                            <p class="event-description" style="margin:0 0 20px 0; font-size:13px; color:#64748b; line-height:1.6; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; flex:1;">@ev.Description</p>
+                            
+                            <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:20px; padding:16px; background:#f8fafc; border-radius:12px;">
+                                <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#475569; font-weight:500;">
+                                    <i class="far fa-calendar-alt" style="color:#062b63; width:16px;"></i> @ev.Date.ToString("MMM dd, yyyy")
+                                </div>
+                                <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#475569; font-weight:500;">
+                                    <i class="fas fa-map-marker-alt" style="color:#062b63; width:16px;"></i> @ev.Venue
+                                </div>
+                                @if (!string.IsNullOrEmpty(ev.AssignedLeaderName))
+                                {
+                                    <div style="display:flex; align-items:center; gap:10px; font-size:13px; color:#062b63; font-weight:700;">
+                                        <i class="fas fa-user-tie" style="color:#062b63; width:16px;"></i> Leader: @ev.AssignedLeaderName
+                                    </div>
+                                }
+                            </div>
+                            
+                            <button @onclick="() => NavigateToDetails(ev.Id)" style="width:100%; padding:10px; background:#f1f5f9; color:#0f172a; border:none; border-radius:10px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px; transition:all 0.2s;">
+                                <i class="fas fa-eye"></i> View Details
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <District_Event_Calendar DistrictEvents="@eventsList" ViewDate="@viewDate" />
+        }
+    </div>
+</div>
+
+@code {
+    private string ViewMode = "list";
+    private string currentStatus = "Planned Event";
+    private DateTime viewDate = DateTime.Today;
+    private string searchText = "";
+
+    private List<DistrictEventModel> eventsList = new();
+    private IEnumerable<DistrictEventModel> FilteredEvents => eventsList
+        .Where(e => e.Status == currentStatus)
+        .Where(e => string.IsNullOrWhiteSpace(searchText) || 
+                   (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                   (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                   (e.Date.ToString("MMM dd, yyyy").Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                   (e.Date.ToString("MM/dd/yyyy").Contains(searchText, StringComparison.OrdinalIgnoreCase)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await DistrictEventService.LoadEventsAsync();
+        eventsList = DistrictEventService.Events;
+    }
+
+    private void PrevMonth() => viewDate = viewDate.AddMonths(-1);
+    private void NextMonth() => viewDate = viewDate.AddMonths(1);
+    private void GoToToday() => viewDate = DateTime.Today;
+
+    private void NavigateToForm() => NavManager.NavigateTo("/district-event-form");
+    private void NavigateToDetails(int id) => NavManager.NavigateTo($"/district-event-details/{id}");
+
+    private (string bg, string text, string border) GetStatusColor(string status) => status switch
+    {
+        "Planned Event" => ("#eef2ff", "#6366f1", "#c7d2fe"),
+        "Under Review" => ("#fffbeb", "#d97706", "#fef3c7"),
+        "Approved" => ("#ecfdf5", "#10b981", "#a7f3d0"),
+        "Published" => ("#eff6ff", "#3b82f6", "#bfdbfe"),
+        "Ended" => ("#f8fafc", "#475569", "#cbd5e1"),
+        "Rejected" => ("#fef2f2", "#ef4444", "#fecaca"),
+        "Rescheduled" => ("#f5f3ff", "#8b5cf6", "#ddd6fe"),
+        _ => ("#f8fafc", "#64748b", "#e2e8f0")
+    };
+}

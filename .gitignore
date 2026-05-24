@@ -1,0 +1,77 @@
+# =========================
+# Build Folders
+# =========================
+bin/
+obj/
+
+# =========================
+# Visual Studio
+# =========================
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# =========================
+# Rider / JetBrains
+# =========================
+.idea/
+
+# =========================
+# ASP.NET Core
+# =========================
+appsettings.Development.json
+appsettings.Local.json
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# NuGet Packages
+# =========================
+*.nupkg
+packages/
+
+# =========================
+# Node Modules (if using frontend tooling)
+# =========================
+node_modules/
+
+# =========================
+# Generated Files
+# =========================
+wwwroot/dist/
+wwwroot/build/
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Temporary Files
+# =========================
+*.tmp
+*.temp
+
+# =========================
+# Database Files
+# =========================
+*.mdf
+*.ldf
+
+# =========================
+# Publish Output
+# =========================
+publish/

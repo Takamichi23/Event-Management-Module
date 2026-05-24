@@ -1,0 +1,335 @@
+@page "/district-head/financial/proposals"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using CMIS.Models
+@using CMIS.Services
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject CustomAuthStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Budget Proposals — District Head</PageTitle>
+
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/district-head/financial/proposals" class="tab active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Budget Proposals</a>
+    <a href="/district-head/financial/transactions" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Transactions</a>
+    <a href="/district-head/financial/allocation" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Budget Allocation</a>
+    <a href="/district-head/financial/monitoring" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Monitoring</a>
+    <a href="/district-head/financial/reports" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Reports</a>
+</div>
+
+<!-- Authority Banner -->
+<div style="display:flex;align-items:center;gap:0.6rem;padding:0.75rem 1rem;background:linear-gradient(135deg,#eef6fb,#f0f8ff);border:1px solid #b8d4e8;border-radius:10px;margin-bottom:1rem;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a5276" stroke-width="2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+    <span style="font-family:'Inter',sans-serif;font-size:0.82rem;color:#2c3e50;">Your authority: Create <span style="font-weight:700;background:#e8f4f8;padding:0.15rem 0.4rem;border-radius:4px;color:#1a5276;">District</span> budget proposals and submit them to <span style="font-weight:700;background:#e8f4f8;padding:0.15rem 0.4rem;border-radius:4px;color:#1a5276;">Leadership Council</span> for approval.</span>
+</div>
+
+<!-- Sub-tabs -->
+<div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+    <button @onclick='() => activeSubTab = "mine"' style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.5rem 1rem;font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:600;border-radius:20px;border:1.5px solid @(activeSubTab == "mine" ? "#0d2137" : "#d1d9e6");background:@(activeSubTab == "mine" ? "#0d2137" : "#fff");color:@(activeSubTab == "mine" ? "#fff" : "#6b7c93");cursor:pointer;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+        My Proposals <span style="background:@(activeSubTab == "mine" ? "rgba(255,255,255,0.2)" : "#e8ecf1");padding:0.1rem 0.45rem;border-radius:10px;font-size:0.68rem;">@myProposals.Count</span>
+    </button>
+    <button @onclick='() => activeSubTab = "all"' style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.5rem 1rem;font-family:'Inter',sans-serif;font-size:0.8rem;font-weight:600;border-radius:20px;border:1.5px solid @(activeSubTab == "all" ? "#0d2137" : "#d1d9e6");background:@(activeSubTab == "all" ? "#0d2137" : "#fff");color:@(activeSubTab == "all" ? "#fff" : "#6b7c93");cursor:pointer;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        All Proposals <span style="background:@(activeSubTab == "all" ? "rgba(255,255,255,0.2)" : "#e8ecf1");padding:0.1rem 0.45rem;border-radius:10px;font-size:0.68rem;">@allProposals.Count</span>
+    </button>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.85rem;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;flex:1;min-width:200px;max-width:400px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e99a4" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search proposals..." @bind="searchQuery" @bind:event="oninput" style="border:none;outline:none;background:none;font-family:'Inter',sans-serif;font-size:0.84rem;color:#1a1a2e;width:100%;" />
+    </div>
+    <select @bind="statusFilter" style="padding:0.55rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.84rem;color:#2c3e50;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;min-width:120px;">
+        <option value="">All Statuses</option>
+        <option value="Pending">Pending</option>
+        <option value="Approved">Approved</option>
+        <option value="Disapproved">Disapproved</option>
+    </select>
+    <button @onclick="OpenModal" style="display:inline-flex;align-items:center;gap:0.4rem;margin-left:auto;padding:0.6rem 1.2rem;font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:700;color:#fff;background:#0d2137;border:none;border-radius:8px;cursor:pointer;white-space:nowrap;">
+        + New District Proposal
+    </button>
+</div>
+
+<!-- Table -->
+<div style="background:#fff;border-radius:12px;border:1px solid #e8ecf1;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:0.84rem;table-layout:fixed;">
+        <colgroup><col style="width:12%"/><col style="width:24%"/><col style="width:10%"/><col style="width:12%"/><col style="width:18%"/><col style="width:14%"/><col style="width:10%"/></colgroup>
+        <thead style="background:#f8fafc;">
+            <tr>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">ID</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Purpose</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">District</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Amount</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Submission</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Status</th>
+                <th style="padding:0.75rem 1rem;text-align:center;font-weight:600;font-size:0.72rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in displayedProposals)
+            {
+                var badgeBg = "#fef9e7";
+                var badgeColor = "#7d6608";
+                var statusColor = p.Status == "Approved" ? "#27ae60" : p.Status == "Disapproved" ? "#c0392b" : "#e67e22";
+                var statusBg = p.Status == "Approved" ? "#eafaf1" : p.Status == "Disapproved" ? "#fdedec" : "#fef9e7";
+                <tr style="border-bottom:1px solid #f0f3f6;">
+                    <td style="padding:0.85rem 1rem;font-weight:600;color:#0d2137;">@p.ProposalCode</td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="font-weight:600;color:#0d2137;display:block;">@p.Purpose</span>
+                        <span style="font-size:0.72rem;color:#8e99a4;">@p.Ministry?.MinistryName</span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="padding:0.2rem 0.55rem;border-radius:4px;font-size:0.68rem;font-weight:700;background:@badgeBg;color:@badgeColor;">@(p.District?.DistrictName ?? "—")</span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;font-weight:600;color:#0d2137;">$@p.Amount.ToString("N0")</td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="display:block;font-size:0.78rem;color:#2c3e50;">District Head</span>
+                        <span style="font-size:0.72rem;color:#8e99a4;">→ Leadership Council</span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.55rem;border-radius:4px;font-size:0.68rem;font-weight:700;background:@statusBg;color:@statusColor;">
+                            <span style="width:6px;height:6px;border-radius:50%;background:@statusColor;display:inline-block;"></span>
+                            @p.Status
+                        </span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;text-align:center;">
+                        <svg @onclick="() => OpenViewModal(p)" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7c93" stroke-width="2" style="cursor:pointer;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (showModal)
+{
+    <div style="position:fixed;inset:0;z-index:1000;background:rgba(13,33,55,0.45);display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="CloseModal">
+        <div style="background:#fff;border-radius:16px;padding:2rem;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(13,33,55,0.25);display:flex;flex-direction:column;gap:1.1rem;max-height:90vh;overflow-y:auto;" @onclick:stopPropagation="true">
+            <h2 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.25rem;color:#0d2137;margin:0;">New District Proposal</h2>
+
+            <div style="display:flex;flex-direction:column;gap:0.35rem;">
+                <label style="font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:600;color:#2c3e50;">Purpose</label>
+                <input type="text" @bind="newPurpose" placeholder="Brief purpose of this proposal"
+                       style="padding:0.65rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;width:100%;box-sizing:border-box;" />
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:0.35rem;">
+                <label style="font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:600;color:#2c3e50;">Description (Optional)</label>
+                <textarea @bind="newDescription" rows="3" placeholder="Additional details..."
+                          style="padding:0.65rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;resize:vertical;min-height:72px;width:100%;box-sizing:border-box;"></textarea>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                <div style="display:flex;flex-direction:column;gap:0.35rem;">
+                    <label style="font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:600;color:#2c3e50;">District</label>
+                    <div style="padding:0.65rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;color:#1a5276;background:#f0f4f8;border:1.5px solid #d1d9e6;border-radius:8px;">@currentDistrictName</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.35rem;">
+                    <label style="font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:600;color:#2c3e50;">Level</label>
+                    <div style="padding:0.65rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;color:#1a5276;background:#f0f4f8;border:1.5px solid #d1d9e6;border-radius:8px;">District</div>
+                </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:0.35rem;">
+                <label style="font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:600;color:#2c3e50;">Amount ($)</label>
+                <input type="number" @bind="newAmount" step="0.01" min="0" placeholder="0.00"
+                       style="padding:0.65rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;width:100%;box-sizing:border-box;" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <p style="font-family:'Inter',sans-serif;font-size:0.8rem;color:#c0392b;margin:0;">@modalError</p>
+            }
+
+            <div style="display:flex;justify-content:flex-end;gap:0.75rem;margin-top:0.25rem;">
+                <button @onclick="CloseModal" style="padding:0.65rem 1.4rem;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;color:#6b7c93;background:none;border:1.5px solid #d1d9e6;border-radius:8px;cursor:pointer;">Cancel</button>
+                <button @onclick="SaveProposal" disabled="@isSaving" style="padding:0.65rem 1.5rem;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:700;color:#fff;background:#0d2137;border:none;border-radius:8px;cursor:pointer;opacity:@(isSaving ? "0.6" : "1");">@(isSaving ? "Submitting..." : "Submit Proposal")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (showViewModal && viewProposal != null)
+{
+    var sBg = viewProposal.Status == "Approved" ? "#eafaf1" : viewProposal.Status == "Disapproved" ? "#fdedec" : "#fef9e7";
+    var sColor = viewProposal.Status == "Approved" ? "#1e8449" : viewProposal.Status == "Disapproved" ? "#c0392b" : "#b7950b";
+    var sDot = viewProposal.Status == "Approved" ? "#27ae60" : viewProposal.Status == "Disapproved" ? "#e74c3c" : "#d4ac0d";
+    <div style="position:fixed;inset:0;z-index:1000;background:rgba(13,33,55,0.45);display:flex;align-items:center;justify-content:center;padding:1rem;" @onclick="CloseViewModal">
+        <div style="background:#fff;border-radius:16px;padding:2rem;width:100%;max-width:520px;box-shadow:0 20px 60px rgba(13,33,55,0.25);display:flex;flex-direction:column;gap:1.1rem;max-height:90vh;overflow-y:auto;" @onclick:stopPropagation="true">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <h2 style="font-family:'Outfit',sans-serif;font-weight:800;font-size:1.25rem;color:#0d2137;margin:0;">Proposal Details</h2>
+                <span style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.7rem;border-radius:20px;font-size:0.75rem;font-weight:600;background:@sBg;color:@sColor;">
+                    <span style="width:7px;height:7px;border-radius:50%;background:@sDot;display:inline-block;"></span>
+                    @viewProposal.Status
+                </span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Proposal ID</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#0d2137;font-weight:600;">@viewProposal.ProposalCode</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">District</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;">@(viewProposal.District?.DistrictName ?? "—")</div>
+                </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Purpose</span>
+                <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;">@viewProposal.Purpose</div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(viewProposal.Description))
+            {
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Description</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;white-space:pre-wrap;">@viewProposal.Description</div>
+                </div>
+            }
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Ministry</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;">@(viewProposal.Ministry?.MinistryName ?? "—")</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Amount</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#0d2137;font-weight:600;">$@viewProposal.Amount.ToString("N2")</div>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Submitted By</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;">@(viewProposal.SubmittedBy?.FirstName + " " + viewProposal.SubmittedBy?.LastName)</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.3rem;">
+                    <span style="font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;">Date Submitted</span>
+                    <div style="padding:0.55rem 0.8rem;background:#f8fafc;border:1.5px solid #e8ecf1;border-radius:8px;font-family:'Inter',sans-serif;font-size:0.88rem;color:#1a1a2e;">@viewProposal.CreatedAt.ToString("MMM d, yyyy")</div>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;margin-top:0.25rem;">
+                <button @onclick="CloseViewModal" style="padding:0.65rem 1.4rem;font-family:'Inter',sans-serif;font-size:0.88rem;font-weight:600;color:#6b7c93;background:none;border:1.5px solid #d1d9e6;border-radius:8px;cursor:pointer;">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<BudgetProposal> allProposals = new();
+    private string activeSubTab = "mine";
+    private string searchQuery = "";
+    private string statusFilter = "";
+    private int currentProfileId = 0;
+    private int currentChurchId = 0;
+    private int? currentDistrictId = null;
+    private string currentDistrictName = "";
+
+    // New proposal modal
+    private bool showModal = false;
+    private bool isSaving = false;
+    private string newPurpose = "";
+    private string newDescription = "";
+    private decimal newAmount = 0;
+    private string modalError = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var accountIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (accountIdClaim != null && int.TryParse(accountIdClaim.Value, out int accountId))
+        {
+            var account = await Db.Accounts
+                .Include(a => a.Church).ThenInclude(c => c!.District)
+                .FirstOrDefaultAsync(a => a.AccountId == accountId);
+            currentProfileId = account?.ProfileId ?? 0;
+            currentChurchId = account?.ChurchId ?? 0;
+            currentDistrictId = account?.Church?.DistrictId;
+            currentDistrictName = account?.Church?.District?.DistrictName ?? "—";
+        }
+
+        allProposals = await Db.BudgetProposals
+            .Include(p => p.Ministry)
+            .Include(p => p.District)
+            .Include(p => p.SubmittedBy)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+    }
+
+    private void OpenModal()
+    {
+        newPurpose = ""; newDescription = ""; newAmount = 0; modalError = "";
+        showModal = true;
+    }
+    private void CloseModal() { showModal = false; modalError = ""; }
+
+    private async Task SaveProposal()
+    {
+        modalError = "";
+        if (string.IsNullOrWhiteSpace(newPurpose)) { modalError = "Purpose is required."; return; }
+        if (newAmount <= 0) { modalError = "Amount must be greater than zero."; return; }
+        if (currentProfileId == 0) { modalError = "Unable to identify current user."; return; }
+
+        isSaving = true;
+
+        var lastCode = await Db.BudgetProposals
+            .OrderByDescending(p => p.ProposalId)
+            .Select(p => p.ProposalCode)
+            .FirstOrDefaultAsync();
+        int nextNum = 1001;
+        if (lastCode != null && lastCode.StartsWith("BP-") && int.TryParse(lastCode[3..], out int parsed))
+            nextNum = parsed + 1;
+
+        Db.BudgetProposals.Add(new BudgetProposal
+        {
+            ProposalCode = $"BP-{nextNum}",
+            Purpose = newPurpose.Trim(),
+            Description = string.IsNullOrWhiteSpace(newDescription) ? null : newDescription.Trim(),
+            MinistryId = null,
+            ChurchId = currentChurchId > 0 ? currentChurchId : null,
+            DistrictId = currentDistrictId,
+            Level = "District",
+            Amount = newAmount,
+            Status = "Pending",
+            SubmittedById = currentProfileId,
+            CreatedAt = DateTime.UtcNow
+        });
+        await Db.SaveChangesAsync();
+
+        allProposals = await Db.BudgetProposals
+            .Include(p => p.Ministry).Include(p => p.District).Include(p => p.SubmittedBy)
+            .OrderByDescending(p => p.CreatedAt).ToListAsync();
+
+        isSaving = false;
+        showModal = false;
+    }
+
+    private bool showViewModal = false;
+    private BudgetProposal? viewProposal = null;
+
+    private void OpenViewModal(BudgetProposal p) { viewProposal = p; showViewModal = true; }
+    private void CloseViewModal() { showViewModal = false; viewProposal = null; }
+
+    private List<BudgetProposal> myProposals => allProposals.Where(p => p.Level == "District").ToList();
+
+    private List<BudgetProposal> displayedProposals
+    {
+        get
+        {
+            var source = activeSubTab == "mine" ? myProposals : allProposals.Where(p => p.Level == "District").ToList();
+            var q = source.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var s = searchQuery.Trim().ToLower();
+                q = q.Where(p => p.Purpose.ToLower().Contains(s) || p.ProposalCode.ToLower().Contains(s));
+            }
+            if (!string.IsNullOrEmpty(statusFilter)) q = q.Where(p => p.Status == statusFilter);
+            return q.ToList();
+        }
+    }
+}

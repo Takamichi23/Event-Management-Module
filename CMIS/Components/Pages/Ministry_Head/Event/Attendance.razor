@@ -1,0 +1,358 @@
+@page "/ministry-head/event-attendance/{Id:int}"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.EventService EventService
+@inject NavigationManager NavManager
+
+<div class="attendance-container">
+    @if (currentEvent == null)
+    {
+        <div style="padding: 100px; text-align:center;">
+            @if (errorMessage != null)
+            {
+                <div class="alert alert-danger">@errorMessage</div>
+                <button class="btn btn-secondary mt-3" @onclick="GoBack">Back to Events</button>
+            }
+            else
+            {
+                <div class="spinner-border text-primary" role="status"></div>
+                <p>Loading Attendance Tracker...</p>
+            }
+        </div>
+    }
+    else
+    {
+        <header class="tracker-header">
+            <div class="tracker-header-top">
+                <div class="tracker-title">
+                    <i class="fas fa-user-check"></i>
+                    Attendance Tracker
+                </div>
+                <button class="close-btn" @onclick="GoBack"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="tracker-desc">Track daily attendance by recording present, late, absent. View attendance history and summaries for accurate timekeeping.</p>
+        </header>
+
+        <div class="attendance-body">
+            <!-- Walk In Form (Side) -->
+            @if (showWalkInForm)
+            {
+                <div class="side-form split-enter">
+                    <h3 class="form-title">Register Participant</h3>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" placeholder="e.g., Maria" required @bind="newWalkIn.FirstName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Middle Name</label>
+                            <input type="text" class="form-control" placeholder="e.g., Paz" @bind="newWalkIn.MiddleName" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Last Name <span class="required">*</span></label>
+                            <input type="text" class="form-control" placeholder="e.g., Santos" required @bind="newWalkIn.LastName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Suffix</label>
+                            <input type="text" class="form-control" placeholder="e.g., Jr" @bind="newWalkIn.Suffix" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Date of Birth <span class="required">*</span></label>
+                            <input type="date" class="form-control" required @bind="newWalkIn.DOB" />
+                        </div>
+                        <div class="form-group">
+                            <label>Phone Number <span class="required">*</span></label>
+                            <input type="tel" class="form-control" placeholder="(+63)" required @bind="newWalkIn.Phone" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Email <span class="required">*</span></label>
+                        <input type="email" class="form-control" placeholder="e.g., test@gmail.com" required @bind="newWalkIn.Email" />
+                    </div>
+
+                    <div class="form-footer">
+                        <button class="btn-cancel" @onclick="@(() => showWalkInForm = false)">Cancel</button>
+                        <button class="btn-register" @onclick="RegisterWalkIn">Register</button>
+                    </div>
+                </div>
+            }
+
+            <!-- Main Content -->
+            <div class="main-content">
+                <div class="event-title-row">
+                    <h2 class="event-name">@currentEvent.Title</h2>
+                    <div style="display:flex; align-items:center; gap:24px;">
+                        <div class="tab-group">
+                            <button class="tab-btn @(activeTab == "Attendance" ? "active" : "inactive")" @onclick="@(() => activeTab = "Attendance")">Attendance</button>
+                            <button class="tab-btn @(activeTab == "Details" ? "active" : "inactive")" @onclick="@(() => activeTab = "Details")">Details</button>
+                        </div>
+                        <a href="javascript:void(0)" class="export-link @(IsEventEnded ? "enabled" : "")" @onclick="ExportReport">
+                            <i class="fas fa-download"></i> Export
+                        </a>
+                    </div>
+                </div>
+
+                <div class="info-grid">
+                    <div class="info-card">
+                        <span class="info-label">Date</span>
+                        <div class="info-value">@currentEvent.Date.ToString("dddd, MMMM dd, yyyy")</div>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label">Event Type</span>
+                        <div class="info-value">@currentEvent.Category</div>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label">Recorded By</span>
+                        <div class="info-value">@currentEvent.OrganizingMinistry</div>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label">Total Capacity</span>
+                        <div class="info-value">@currentEvent.ExpectedParticipants</div>
+                    </div>
+                </div>
+
+                @if (activeTab == "Attendance")
+                {
+                    <div class="actions-row">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" class="search-input" placeholder="Search Participants" @bind="searchQuery" @bind:event="oninput" />
+                        </div>
+                        <button class="walkin-btn" @onclick="@(() => showWalkInForm = true)">
+                            <i class="fas fa-plus"></i> Walk In
+                        </button>
+                    </div>
+
+                    <h3 class="section-title">Attendees Queue</h3>
+                    <div class="attendee-list">
+                        @foreach (var p in FilteredParticipants.Where(p => p.Status == "Pending"))
+                        {
+                            <div class="attendee-item">
+                                <div class="attendee-info">
+                                    <div class="status-dot" style="background:#e2e8f0;"></div>
+                                    <span class="attendee-name">@p.Name</span>
+                                </div>
+                                <div class="action-btns">
+                                    <button class="btn-present" @onclick="@(() => MarkStatus(p, "Present"))">Present</button>
+                                    <button class="btn-late" @onclick="@(() => MarkStatus(p, "Late"))">Late</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="stats-grid">
+                        <div class="stat-card stat-present">
+                            <i class="fas fa-user-check"></i>
+                            <span class="stat-num">@Stats.Present</span>
+                            <span class="stat-label">Present</span>
+                        </div>
+                        <div class="stat-card stat-late">
+                            <i class="fas fa-clock"></i>
+                            <span class="stat-num">@Stats.Late</span>
+                            <span class="stat-label">Late</span>
+                        </div>
+                        <div class="stat-card stat-absent">
+                            <i class="fas fa-user-times"></i>
+                            <span class="stat-num">@Stats.Absent</span>
+                            <span class="stat-label">Absent</span>
+                        </div>
+                        <div class="stat-card stat-walkin">
+                            <i class="fas fa-walking"></i>
+                            <span class="stat-num">@Stats.WalkIn</span>
+                            <span class="stat-label">Walk In</span>
+                        </div>
+                    </div>
+
+                    <h3 class="section-title">Attendance Details</h3>
+                    <div class="attendee-list">
+                        @foreach (var p in FilteredParticipants.Where(p => p.Status != "Pending"))
+                        {
+                            <div class="attendee-item">
+                                <div class="attendee-info">
+                                    <div style="width:36px; height:36px; border-radius:50%; background:@(GetStatusColor(p.Status) + "20"); display:flex; align-items:center; justify-content:center; color:@GetStatusColor(p.Status);">
+                                        <i class="@GetStatusIcon(p.Status)"></i>
+                                    </div>
+                                    <div>
+                                        <div class="attendee-name">@p.Name</div>
+                                        <div class="attendee-meta">
+                                            @if (p.Status == "Absent") { <span>Missed session</span> }
+                                            else { <span>Check-in: @p.CheckInTime?.ToString("hh:mm tt")</span> }
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="status-badge" style="background:@(GetStatusColor(p.Status) + "20"); color:@GetStatusColor(p.Status);">
+                                    @p.Status
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (showSuccessModal)
+    {
+        <div class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3 class="modal-title">Confirm Submission</h3>
+                    <button class="modal-close" @onclick="@(() => showSuccessModal = false)"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div class="success-icon-wrap">
+                    <i class="fas fa-check"></i>
+                </div>
+                
+                <div class="success-msg">@modalMessage</div>
+                
+                <button class="modal-btn" @onclick="@(() => showSuccessModal = false)">Continue</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private EventModel? currentEvent;
+    private string activeTab = "Attendance";
+    private bool showWalkInForm = false;
+    private string searchQuery = "";
+    private bool showSuccessModal = false;
+    private string modalMessage = "Successfully Submitted";
+
+    private List<Participant> participants = new()
+    {
+        new Participant { Name = "Maria Santos" },
+        new Participant { Name = "Jose Reyes" },
+        new Participant { Name = "Ana Garcia" },
+        new Participant { Name = "Pedro Cruz" },
+        new Participant { Name = "Honey Lyn" },
+        new Participant { Name = "Linda Torres" },
+        new Participant { Name = "Juan Dela Cruz" }
+    };
+
+    private IEnumerable<Participant> FilteredParticipants => 
+        string.IsNullOrWhiteSpace(searchQuery) 
+        ? participants 
+        : participants.Where(p => p.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    private WalkInForm newWalkIn = new();
+
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try 
+        {
+            currentEvent = await EventService.GetEventByIdAsync(Id);
+            if (currentEvent == null)
+            {
+                errorMessage = "Event not found.";
+            }
+            
+            // If event ended and some people are still pending, mark as absent (simulated)
+            if (IsEventEnded) {
+                foreach(var p in participants.Where(p => p.Status == "Pending")) p.Status = "Absent";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error loading event: {ex.Message}";
+        }
+    }
+
+    private bool IsEventEnded => currentEvent != null && 
+        (currentEvent.Date.Date < DateTime.Today || 
+        (currentEvent.Date.Date == DateTime.Today && TimeOnly.FromDateTime(DateTime.Now) > currentEvent.EndTime));
+
+    private void MarkStatus(Participant p, string status)
+    {
+        p.Status = status;
+        p.CheckInTime = TimeOnly.FromDateTime(DateTime.Now);
+    }
+
+    private void RegisterWalkIn()
+    {
+        if (string.IsNullOrWhiteSpace(newWalkIn.FirstName) || string.IsNullOrWhiteSpace(newWalkIn.LastName)) return;
+
+        var name = $"{newWalkIn.FirstName} {newWalkIn.LastName}";
+        var p = new Participant { Name = name, Status = "Present", CheckInTime = TimeOnly.FromDateTime(DateTime.Now), IsWalkIn = true };
+        participants.Add(p);
+        
+        newWalkIn = new();
+        showWalkInForm = false;
+        activeTab = "Details"; // Switch to details to show the new entry
+        
+        modalMessage = "Participant Recorded";
+        showSuccessModal = true;
+    }
+
+    private void ExportReport()
+    {
+        if (!IsEventEnded) return;
+        modalMessage = "Report Generated";
+        showSuccessModal = true;
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/ministry-head/events");
+
+    private string GetStatusColor(string status) => status switch
+    {
+        "Present" => "#16a34a",
+        "Late" => "#ca8a04",
+        "Absent" => "#dc2626",
+        _ => "#64748b"
+    };
+
+    private string GetStatusIcon(string status) => status switch
+    {
+        "Present" => "fas fa-check",
+        "Late" => "fas fa-clock",
+        "Absent" => "fas fa-times",
+        _ => "fas fa-question"
+    };
+
+    private AttendanceStats Stats => new()
+    {
+        Present = participants.Count(p => p.Status == "Present"),
+        Late = participants.Count(p => p.Status == "Late"),
+        Absent = participants.Count(p => p.Status == "Absent"),
+        WalkIn = participants.Count(p => p.IsWalkIn)
+    };
+
+    public class Participant {
+        public string Name { get; set; } = "";
+        public string Status { get; set; } = "Pending";
+        public TimeOnly? CheckInTime { get; set; }
+        public bool IsWalkIn { get; set; }
+    }
+
+    public class WalkInForm {
+        public string FirstName { get; set; } = "";
+        public string MiddleName { get; set; } = "";
+        public string LastName { get; set; } = "";
+        public string Suffix { get; set; } = "";
+        public DateTime DOB { get; set; } = DateTime.Today.AddYears(-20);
+        public string Phone { get; set; } = "";
+        public string Email { get; set; } = "";
+    }
+
+    public class AttendanceStats {
+        public int Present { get; set; }
+        public int Late { get; set; }
+        public int Absent { get; set; }
+        public int WalkIn { get; set; }
+    }
+}

@@ -1,0 +1,801 @@
+@page "/appointments"
+@layout CMIS.Components.Layout.LoginLayout
+@rendermode InteractiveServer
+@using System.Net.Http
+@using System.Net.Http.Json
+@using System.Text.Json
+@using System.Text
+
+<PageTitle>My Appointments — Jesus Our Banner Ministry</PageTitle>
+<HeadContent>
+    <meta name="description" content="View and manage your church service appointments." />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</HeadContent>
+
+<!-- ===== TOP NAVBAR ===== -->
+<nav class="site-navbar">
+    <div class="navbar-inner">
+        <a href="/" class="navbar-brand" id="navbar-brand">
+            <img src="images/worship-hero.png" alt="" class="brand-icon" aria-hidden="true" />
+            <div class="brand-text">
+                <span class="brand-title">JESUS OUR BANNER</span>
+                <span class="brand-subtitle">MINISTRY</span>
+            </div>
+        </a>
+        <div class="navbar-links">
+            <a href="/" class="nav-link">HOME</a>
+            <a href="/appointments" class="nav-link active-link">APPOINTMENTS</a>
+            <a href="/services" class="nav-link">SERVICES</a>
+            <a href="/login" class="nav-link">SIGN IN</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ===== MAIN CONTENT ===== -->
+<section class="appointments-page">
+    <div class="page-container">
+
+        <!-- PAGE HEADER -->
+        <div class="page-header">
+            <div class="header-left">
+                <h1 class="page-title">My Appointments</h1>
+                <p class="page-subtitle">View and manage your church service appointments</p>
+            </div>
+            <button class="btn-book" id="btn-book-appointment" @onclick="OpenBookingModal">
+                <i class="fas fa-plus"></i>
+                <span>Book Appointment</span>
+            </button>
+        </div>
+
+        <!-- STATUS FILTER TABS -->
+        <div class="filter-tabs">
+            <button class="filter-tab @(activeFilter == "all" ? "active" : "")" @onclick='() => SetFilter("all")'>
+                <i class="fas fa-list"></i> All
+                <span class="tab-count">@appointments.Count</span>
+            </button>
+            <button class="filter-tab @(activeFilter == "pending" ? "active" : "")" @onclick='() => SetFilter("pending")'>
+                <i class="fas fa-clock"></i> Pending
+                <span class="tab-count">@appointments.Count(a => ResolveStatus(a.Status) == "Pending")</span>
+            </button>
+            <button class="filter-tab @(activeFilter == "confirmed" ? "active" : "")" @onclick='() => SetFilter("confirmed")'>
+                <i class="fas fa-check-circle"></i> Confirmed
+                <span class="tab-count">@appointments.Count(a => ResolveStatus(a.Status) == "Confirmed")</span>
+            </button>
+            <button class="filter-tab @(activeFilter == "rescheduled" ? "active" : "")" @onclick='() => SetFilter("rescheduled")'>
+                <i class="fas fa-calendar-alt"></i> Rescheduled
+                <span class="tab-count">@appointments.Count(a => ResolveStatus(a.Status) == "Rescheduled")</span>
+            </button>
+            <button class="filter-tab @(activeFilter == "cancelled" ? "active" : "")" @onclick='() => SetFilter("cancelled")'>
+                <i class="fas fa-times-circle"></i> Cancelled
+                <span class="tab-count">@appointments.Count(a => ResolveStatus(a.Status) == "Cancelled")</span>
+            </button>
+            <button class="filter-tab @(activeFilter == "complete" ? "active" : "")" @onclick='() => SetFilter("complete")'>
+                <i class="fas fa-flag-checkered"></i> Complete
+                <span class="tab-count">@appointments.Count(a => ResolveStatus(a.Status) == "Complete")</span>
+            </button>
+        </div>
+
+        <!-- LOADING STATE -->
+        @if (isLoadingAppointments)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading appointments...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(loadError))
+        {
+            <div class="error-banner" id="load-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>@loadError</span>
+                <button class="btn-retry" @onclick="LoadAppointments">Retry</button>
+            </div>
+        }
+        else if (FilteredAppointments.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-calendar-xmark"></i>
+                </div>
+                <h3>No appointments found</h3>
+                <p>@(activeFilter == "all" ? "You don't have any appointments yet. Book one now!" : $"No {activeFilter} appointments.")</p>
+                @if (activeFilter == "all")
+                {
+                    <button class="btn-book-sm" @onclick="OpenBookingModal">
+                        <i class="fas fa-plus"></i> Book Appointment
+                    </button>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- APPOINTMENTS TABLE -->
+            <div class="table-wrapper">
+                <table class="appointments-table" id="appointments-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Service</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var apt in FilteredAppointments)
+                        {
+                            <tr class="apt-row clickable" id="apt-row-@apt.AppointmentId" @onclick="() => ShowDetail(apt)">
+                                <td class="id-cell">#@apt.AppointmentId</td>
+                                <td>
+                                    <div class="service-badge">
+                                        <i class="@GetServiceIcon(ResolveServiceType(apt.ServiceType))"></i>
+                                        @FormatServiceType(ResolveServiceType(apt.ServiceType))
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="date-text">@FormatDate(apt.Date)</div>
+                                    <div class="time-text" style="font-size: 0.8rem; color: #7f8c9b; margin-top: 0.2rem;">
+                                        <i class="far fa-clock"></i> @apt.StartTime - @apt.EndTime
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="status-pill @GetStatusClass(ResolveStatus(apt.Status))">
+                                        @ResolveStatus(apt.Status)
+                                    </span>
+                                </td>
+                                <td>@apt.AssignedToName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+<!-- ===== BOOKING MODAL ===== -->
+@if (showBookingModal)
+{
+    <div class="modal-overlay" @onclick="CloseBookingModal">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    @if (bookingStep == 1)
+                    {
+                        <i class="fas fa-church"></i>
+                        <span>Select a Church</span>
+                    }
+                    else if (bookingStep == 2)
+                    {
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Pick a Schedule</span>
+                    }
+                    else
+                    {
+                        <i class="fas fa-clipboard-check"></i>
+                        <span>Confirm Booking</span>
+                    }
+                </h2>
+                <button class="modal-close" @onclick="CloseBookingModal" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Step Indicator -->
+            <div class="steps-bar">
+                <div class="step @(bookingStep >= 1 ? "active" : "")">
+                    <div class="step-num">1</div>
+                    <span>Church</span>
+                </div>
+                <div class="step-line @(bookingStep >= 2 ? "active" : "")"></div>
+                <div class="step @(bookingStep >= 2 ? "active" : "")">
+                    <div class="step-num">2</div>
+                    <span>Schedule</span>
+                </div>
+                <div class="step-line @(bookingStep >= 3 ? "active" : "")"></div>
+                <div class="step @(bookingStep >= 3 ? "active" : "")">
+                    <div class="step-num">3</div>
+                    <span>Confirm</span>
+                </div>
+            </div>
+
+            <div class="modal-body">
+
+                <!-- Booking Error -->
+                @if (!string.IsNullOrEmpty(bookingError))
+                {
+                    <div class="booking-error" id="booking-error">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span>@bookingError</span>
+                    </div>
+                }
+
+                <!-- Booking Success -->
+                @if (!string.IsNullOrEmpty(bookingSuccess))
+                {
+                    <div class="booking-success" id="booking-success">
+                        <i class="fas fa-check-circle"></i>
+                        <span>@bookingSuccess</span>
+                    </div>
+                }
+
+                <!-- STEP 1: Select Church -->
+                @if (bookingStep == 1)
+                {
+                    @if (isLoadingChurches)
+                    {
+                        <div class="loading-state compact">
+                            <div class="spinner"></div>
+                            <p>Loading churches...</p>
+                        </div>
+                    }
+                    else if (churches.Count == 0)
+                    {
+                        <div class="empty-state compact">
+                            <i class="fas fa-church" style="font-size:2rem;color:#b0bec5;"></i>
+                            <p>No churches available at the moment.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="church-grid">
+                            @foreach (var church in churches)
+                            {
+                                <button class="church-card @(selectedChurch?.ChurchId == church.ChurchId ? "selected" : "")"
+                                        id="church-@church.ChurchId"
+                                        @onclick="() => SelectChurch(church)">
+                                    <div class="church-icon-wrap">
+                                        <i class="fas fa-church"></i>
+                                    </div>
+                                    <div class="church-info">
+                                        <h4>@church.Name</h4>
+                                        <p>@church.Address</p>
+                                    </div>
+                                    @if (selectedChurch?.ChurchId == church.ChurchId)
+                                    {
+                                        <div class="selected-check">
+                                            <i class="fas fa-check"></i>
+                                        </div>
+                                    }
+                                </button>
+                            }
+                        </div>
+
+                        <div class="modal-actions">
+                            <button class="btn-secondary" @onclick="CloseBookingModal">Cancel</button>
+                            <button class="btn-primary" disabled="@(selectedChurch == null)" @onclick="GoToStep2">
+                                Next: Pick Schedule
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    }
+                }
+
+                <!-- STEP 2: Select Schedule -->
+                @if (bookingStep == 2)
+                {
+                    @if (isLoadingSchedules)
+                    {
+                        <div class="loading-state compact">
+                            <div class="spinner"></div>
+                            <p>Loading available schedules...</p>
+                        </div>
+                    }
+                    else if (availableSchedules.Count == 0)
+                    {
+                        <div class="empty-state compact">
+                            <i class="fas fa-calendar-times" style="font-size:2rem;color:#b0bec5;"></i>
+                            <p>No available schedules for this church in the next 3 weeks.</p>
+                        </div>
+                        <div class="modal-actions">
+                            <button class="btn-secondary" @onclick="GoToStep1">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <!-- Service Type Selector -->
+                        <div class="service-type-selector">
+                            <label class="field-label">Service Type</label>
+                            <div class="service-type-grid">
+                                @foreach (var svc in serviceTypes)
+                                {
+                                    <button class="svc-chip @(selectedServiceType == svc ? "selected" : "")"
+                                            @onclick="() => selectedServiceType = svc">
+                                        <i class="@GetServiceIcon(svc)"></i>
+                                        @FormatServiceType(svc)
+                                    </button>
+                                }
+                            </div>
+                        </div>
+
+                        <label class="field-label" style="margin-top:1rem;">Available Time Slots</label>
+                        <div class="schedule-list">
+                            @foreach (var group in availableSchedules.GroupBy(s => s.Date).OrderBy(g => g.Key))
+                            {
+                                <div class="schedule-date-group">
+                                    <div class="date-header">
+                                        <i class="fas fa-calendar-day"></i>
+                                        @FormatDate(group.Key)
+                                    </div>
+                                    <div class="time-slots">
+                                        @foreach (var slot in group)
+                                        {
+                                            <button class="time-slot @(selectedSchedule == slot ? "selected" : "")"
+                                                    id="slot-@slot.Date-@slot.StartTime"
+                                                    @onclick="() => selectedSchedule = slot">
+                                                <i class="fas fa-clock"></i>
+                                                @slot.StartTime — @slot.EndTime
+                                                @if (selectedSchedule == slot)
+                                                {
+                                                    <i class="fas fa-check-circle slot-check"></i>
+                                                }
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="modal-actions">
+                            <button class="btn-secondary" @onclick="GoToStep1">
+                                <i class="fas fa-arrow-left"></i> Back
+                            </button>
+                            <button class="btn-primary" disabled="@(selectedSchedule == null || string.IsNullOrEmpty(selectedServiceType))" @onclick="GoToStep3">
+                                Next: Confirm
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    }
+                }
+
+                <!-- STEP 3: Confirm Booking -->
+                @if (bookingStep == 3)
+                {
+                    <div class="confirm-summary">
+                        <div class="summary-card">
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-church"></i> Church</span>
+                                <span class="summary-value">@selectedChurch?.Name</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-map-marker-alt"></i> Address</span>
+                                <span class="summary-value">@selectedChurch?.Address</span>
+                            </div>
+                            <div class="summary-divider"></div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-concierge-bell"></i> Service</span>
+                                <span class="summary-value">@FormatServiceType(selectedServiceType)</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-calendar-day"></i> Date</span>
+                                <span class="summary-value">@FormatDate(selectedSchedule?.Date)</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-clock"></i> Time</span>
+                                <span class="summary-value">@selectedSchedule?.StartTime — @selectedSchedule?.EndTime</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="btn-secondary" @onclick="GoToStep2Back" disabled="@isBooking">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </button>
+                        <button class="btn-confirm" @onclick="ConfirmBooking" disabled="@isBooking">
+                            @if (isBooking)
+                            {
+                                <div class="spinner-sm"></div>
+                                <span>Booking...</span>
+                            }
+                            else
+                            {
+                                <i class="fas fa-check"></i>
+                                <span>Confirm Booking</span>
+                            }
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<!-- ===== DETAIL MODAL ===== -->
+@if (showDetailModal && selectedAppointment != null)
+{
+    <div class="modal-overlay" @onclick="() => showDetailModal = false">
+        <div class="modal-content detail-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="fas fa-calendar-check"></i>
+                    <span>Appointment #@selectedAppointment.AppointmentId</span>
+                </h2>
+                <button class="modal-close" @onclick="() => showDetailModal = false" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="confirm-summary">
+                    <div class="summary-card">
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-hashtag"></i> Appointment ID</span>
+                            <span class="summary-value">#@selectedAppointment.AppointmentId</span>
+                        </div>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-church"></i> Church</span>
+                            <span class="summary-value">@selectedAppointment.ChurchName</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-map-marker-alt"></i> Address</span>
+                            <span class="summary-value">@selectedAppointment.ChurchAddress</span>
+                        </div>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-concierge-bell"></i> Service Type</span>
+                            <span class="summary-value">@FormatServiceType(ResolveServiceType(selectedAppointment.ServiceType))</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-calendar-day"></i> Date</span>
+                            <span class="summary-value">@FormatDate(selectedAppointment.Date)</span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="far fa-clock"></i> Time</span>
+                            <span class="summary-value">@selectedAppointment.StartTime - @selectedAppointment.EndTime</span>
+                        </div>
+                        <div class="summary-divider"></div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-info-circle"></i> Status</span>
+                            <span class="summary-value">
+                                <span class="status-pill @GetStatusClass(ResolveStatus(selectedAppointment.Status))">
+                                    @ResolveStatus(selectedAppointment.Status)
+                                </span>
+                            </span>
+                        </div>
+                        <div class="summary-row">
+                            <span class="summary-label"><i class="fas fa-user-tie"></i> Assigned To</span>
+                            <span class="summary-value">@selectedAppointment.AssignedToName</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── API base URL ──
+    private const string ApiBase = "http://localhost:5096";
+    private const int RequesterId = 2;
+
+    // ── Enum mappings (must match API's Enums.cs order) ──
+    private static readonly string[] ServiceTypeNames = { "Funeral", "Baptism", "Counsel", "Wedding", "ChildDedication" };
+    private static readonly string[] StatusNames = { "Pending", "Confirmed", "Rescheduled", "Cancelled", "Complete" };
+
+    // ── Appointments list ──
+    private List<AppointmentDto> appointments = new();
+    private string activeFilter = "all";
+    private bool isLoadingAppointments = true;
+    private string? loadError;
+
+    // ── Detail modal ──
+    private bool showDetailModal = false;
+    private AppointmentDto? selectedAppointment;
+
+    // ── Booking modal ──
+    private bool showBookingModal = false;
+    private int bookingStep = 1;
+    private string? bookingError;
+    private string? bookingSuccess;
+    private bool isBooking = false;
+
+    // Step 1: Churches
+    private List<ChurchDto> churches = new();
+    private ChurchDto? selectedChurch;
+    private bool isLoadingChurches = false;
+
+    // Step 2: Schedules
+    private List<ScheduleDto> availableSchedules = new();
+    private ScheduleDto? selectedSchedule;
+    private string selectedServiceType = "";
+    private bool isLoadingSchedules = false;
+
+    private string[] serviceTypes = { "Wedding", "Baptism", "Funeral", "Counsel", "ChildDedication" };
+
+    // ── Helpers to resolve enum int→string ──
+    private string ResolveServiceType(int val) => val >= 0 && val < ServiceTypeNames.Length ? ServiceTypeNames[val] : $"Unknown({val})";
+    private string ResolveStatus(int val) => val >= 0 && val < StatusNames.Length ? StatusNames[val] : $"Unknown({val})";
+
+    // ── Computed ──
+    private List<AppointmentDto> FilteredAppointments =>
+        activeFilter == "all"
+            ? appointments
+            : appointments.Where(a => ResolveStatus(a.Status).Equals(activeFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    // ── Lifecycle ──
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAppointments();
+    }
+
+    // ── Load Appointments ──
+    private async Task LoadAppointments()
+    {
+        isLoadingAppointments = true;
+        loadError = null;
+        StateHasChanged();
+
+        try
+        {
+            using var http = new HttpClient();
+            var response = await http.GetAsync($"{ApiBase}/Appointment/{RequesterId}");
+            if (response.IsSuccessStatusCode)
+            {
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                appointments = await response.Content.ReadFromJsonAsync<List<AppointmentDto>>(options) ?? new();
+            }
+            else
+            {
+                loadError = $"Failed to load appointments (HTTP {(int)response.StatusCode}).";
+            }
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Could not connect to the server. Make sure the API is running. ({ex.Message})";
+        }
+        finally
+        {
+            isLoadingAppointments = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Filter ──
+    private void SetFilter(string filter)
+    {
+        activeFilter = filter;
+    }
+
+    // ── Detail ──
+    private void ShowDetail(AppointmentDto apt)
+    {
+        selectedAppointment = apt;
+        showDetailModal = true;
+    }
+
+    // ── Booking Flow ──
+    private async Task OpenBookingModal()
+    {
+        showBookingModal = true;
+        bookingStep = 1;
+        bookingError = null;
+        bookingSuccess = null;
+        selectedChurch = null;
+        selectedSchedule = null;
+        selectedServiceType = "";
+        await LoadChurches();
+    }
+
+    private void CloseBookingModal()
+    {
+        showBookingModal = false;
+    }
+
+    private async Task LoadChurches()
+    {
+        isLoadingChurches = true;
+        bookingError = null;
+        StateHasChanged();
+
+        try
+        {
+            using var http = new HttpClient();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            churches = await http.GetFromJsonAsync<List<ChurchDto>>($"{ApiBase}/Appointment/churches", options) ?? new();
+        }
+        catch (Exception)
+        {
+            bookingError = "Failed to load churches. Ensure the API is running.";
+        }
+        finally
+        {
+            isLoadingChurches = false;
+            StateHasChanged();
+        }
+    }
+
+    private void SelectChurch(ChurchDto church)
+    {
+        selectedChurch = church;
+    }
+
+    private async Task GoToStep2()
+    {
+        if (selectedChurch == null) return;
+
+        bookingStep = 2;
+        bookingError = null;
+        selectedSchedule = null;
+        isLoadingSchedules = true;
+        StateHasChanged();
+
+        try
+        {
+            using var http = new HttpClient();
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            availableSchedules = await http.GetFromJsonAsync<List<ScheduleDto>>(
+                $"{ApiBase}/Appointment/available-schedules/{selectedChurch.AssignedToId}", options) ?? new();
+        }
+        catch (Exception)
+        {
+            bookingError = "Failed to load schedules. Please try again.";
+        }
+        finally
+        {
+            isLoadingSchedules = false;
+            StateHasChanged();
+        }
+    }
+
+    private void GoToStep1()
+    {
+        bookingStep = 1;
+        bookingError = null;
+        bookingSuccess = null;
+    }
+
+    private void GoToStep3()
+    {
+        if (selectedSchedule == null || string.IsNullOrEmpty(selectedServiceType)) return;
+        bookingStep = 3;
+        bookingError = null;
+        bookingSuccess = null;
+    }
+
+    private void GoToStep2Back()
+    {
+        bookingStep = 2;
+        bookingError = null;
+        bookingSuccess = null;
+    }
+
+    private async Task ConfirmBooking()
+    {
+        if (selectedChurch == null || selectedSchedule == null || string.IsNullOrEmpty(selectedServiceType)) return;
+
+        isBooking = true;
+        bookingError = null;
+        bookingSuccess = null;
+        StateHasChanged();
+
+        try
+        {
+            using var http = new HttpClient();
+
+            var payload = new
+            {
+                requesterId = RequesterId,
+                assignedToId = selectedSchedule.AssignedToId,
+                serviceType = selectedServiceType,
+                status = "pending",
+                date = selectedSchedule.Date,
+                startTime = selectedSchedule.StartTime + ":00",
+                endTime = selectedSchedule.EndTime + ":00"
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await http.PostAsync($"{ApiBase}/Appointment/create", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                bookingSuccess = "Appointment booked successfully!";
+                await LoadAppointments();
+                await Task.Delay(1500);
+                CloseBookingModal();
+            }
+            else
+            {
+                var errorJson = await response.Content.ReadAsStringAsync();
+                try
+                {
+                    var errorObj = JsonSerializer.Deserialize<ApiError>(errorJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    bookingError = errorObj?.Message ?? "Booking failed. Please try again.";
+                }
+                catch
+                {
+                    bookingError = (int)response.StatusCode switch
+                    {
+                        409 => "This time slot is already booked. Please choose a different time or date.",
+                        400 => "Invalid booking data. Date cannot be in the past.",
+                        _ => $"Booking failed (HTTP {(int)response.StatusCode}). Please try again."
+                    };
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            bookingError = $"Could not connect to the server. ({ex.Message})";
+        }
+        finally
+        {
+            isBooking = false;
+            StateHasChanged();
+        }
+    }
+
+    // ── Helpers ──
+    private string GetStatusClass(string status) => status.ToLower() switch
+    {
+        "pending" => "status-pending",
+        "confirmed" => "status-confirmed",
+        "rescheduled" => "status-rescheduled",
+        "cancelled" => "status-cancelled",
+        "complete" => "status-complete",
+        _ => ""
+    };
+
+    private string GetServiceIcon(string serviceType) => serviceType?.ToLower() switch
+    {
+        "wedding" => "fas fa-heart",
+        "baptism" => "fas fa-water",
+        "funeral" => "fas fa-cross",
+        "counsel" => "fas fa-comments",
+        "childdedication" => "fas fa-baby",
+        _ => "fas fa-concierge-bell"
+    };
+
+    private string FormatServiceType(string type) => type switch
+    {
+        "ChildDedication" => "Child Dedication",
+        _ => type ?? ""
+    };
+
+    private string FormatDate(string? dateStr)
+    {
+        if (string.IsNullOrEmpty(dateStr)) return "";
+        if (DateTime.TryParse(dateStr, out var dt))
+            return dt.ToString("MMM dd, yyyy (dddd)");
+        return dateStr;
+    }
+
+    // ── DTOs ──
+    public class AppointmentDto
+    {
+        public int AppointmentId { get; set; }
+        public int ServiceType { get; set; }
+        public int Status { get; set; }
+        public string Date { get; set; } = "";
+        public string StartTime { get; set; } = "";
+        public string EndTime { get; set; } = "";
+        public string RequesterName { get; set; } = "";
+        public string AssignedToName { get; set; } = "";
+        public string ChurchName { get; set; } = "";
+        public string ChurchAddress { get; set; } = "";
+    }
+
+    public class ChurchDto
+    {
+        public int ChurchId { get; set; }
+        public string Name { get; set; } = "";
+        public string Address { get; set; } = "";
+        public int AssignedToId { get; set; }
+    }
+
+    public class ScheduleDto
+    {
+        public string Date { get; set; } = "";
+        public string StartTime { get; set; } = "";
+        public string EndTime { get; set; } = "";
+        public int AssignedToId { get; set; }
+    }
+
+    public class ApiError
+    {
+        public string Message { get; set; } = "";
+    }
+}

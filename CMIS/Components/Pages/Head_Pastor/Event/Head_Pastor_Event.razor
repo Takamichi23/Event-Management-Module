@@ -1,0 +1,604 @@
+@page "/head-pastor/events"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.EventService EventService
+@inject NavigationManager NavManager
+
+<div class="hp-container">
+    <!-- Header -->
+    <header class="hp-header">
+        <h1>Events & Programs</h1>
+        <div class="hp-header-right">
+            <div class="notif-bell">
+                <i class="far fa-bell"></i>
+                <span class="notif-badge">2</span>
+            </div>
+            <div class="profile-card">
+                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" class="profile-img" />
+                <div class="profile-info">
+                    <span class="name">Kanye West</span>
+                    <span class="role">Head Pastor</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-card">
+        <div class="card-header-row">
+            <div class="card-title-area">
+                <i class="far fa-calendar-check"></i>
+                <h2>@(activeMainTab == "Reports" ? "Event Reports" : "Event Approvals")</h2>
+                <span class="count-badge">@FilteredEvents.Count() Events</span>
+            </div>
+
+            <div class="search-wrapper">
+                <i class="fas fa-search" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none;"></i>
+                <input type="text" class="search-input" placeholder="Search for Event" @bind="searchText" @bind:event="oninput" />
+            </div>
+
+            <div class="switch-tabs">
+                <button class="switch-btn @(activeMainTab == "Reports" ? "active" : "inactive")" @onclick="@(() => activeMainTab = "Reports")">
+                    <i class="fas fa-list-ul"></i> Reports
+                </button>
+                <button class="switch-btn @(activeMainTab == "Approvals" ? "active" : "inactive")" @onclick="@(() => activeMainTab = "Approvals")">
+                    <i class="fas fa-check-double"></i> Approvals
+                </button>
+            </div>
+        </div>
+
+        @if (activeMainTab == "Reports")
+        {
+            @foreach (var ev in FilteredEvents)
+            {
+                <div class="report-container">
+                    <div class="report-date-sidebar">
+                        <span class="day">@ev.Date.Day</span>
+                        <span class="month">@ev.Date.ToString("MMM")</span>
+                        <span class="year">@ev.Date.Year</span>
+                    </div>
+                    <div class="report-content">
+                        <span class="category-label">@ev.Category</span>
+                        <h3 class="report-title">@ev.Title</h3>
+                        <p class="report-desc">@ev.Description</p>
+
+                        <div class="report-stats-grid">
+                            <div class="stat-item">
+                                <i class="fas fa-users"></i>
+                                <span class="stat-val">@ev.AttendanceCount</span>
+                                <span class="stat-lbl">Attendance</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-peso-sign"></i>
+                                <span class="stat-val">₱@ev.TotalEstimatedBudget.ToString("N0")</span>
+                                <span class="stat-lbl">Budget</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-user-plus"></i>
+                                <span class="stat-val">@ev.NewMembersCount</span>
+                                <span class="stat-lbl">New Members</span>
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-walking"></i>
+                                <span class="stat-val">@ev.WalkInCount</span>
+                                <span class="stat-lbl">Walk In</span>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(ev.ReportNotes))
+                        {
+                            <div class="report-notes">
+                                <i class="fas fa-sticky-note"></i>
+                                <div>
+                                    <b>Notes:</b>
+                                    @ev.ReportNotes
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="dashboard-grid">
+                <div class="dash-card pending">
+                    <div class="dash-card-icon"><i class="far fa-clock"></i></div>
+                    <span class="dash-val">@Events.Count(e => e.Status == "Under Review" || e.Status == "Planned Event")</span>
+                    <span class="dash-lbl">Pending Review</span>
+                </div>
+                <div class="dash-card approved">
+                    <div class="dash-card-icon"><i class="far fa-check-circle"></i></div>
+                    <span class="dash-val">@Events.Count(e => e.Status == "Approved")</span>
+                    <span class="dash-lbl">Approved</span>
+                </div>
+                <div class="dash-card approved" style="background:#eff6ff; border-color:#bfdbfe;">
+                    <div class="dash-card-icon" style="background:#dbeafe; color:#2563eb;"><i class="fas fa-globe"></i></div>
+                    <span class="dash-val" style="color:#1e40af;">@Events.Count(e => e.Status == "Published")</span>
+                    <span class="dash-lbl" style="color:#1e40af;">Published</span>
+                </div>
+                <div class="dash-card approved" style="background:#f0fdfa; border-color:#ccfbf1;">
+                    <div class="dash-card-icon" style="background:#ccfbf1; color:#0d9488;"><i class="fas fa-flag-checkered"></i></div>
+                    <span class="dash-val" style="color:#0f766e;">@Events.Count(e => e.Status == "Ended")</span>
+                    <span class="dash-lbl" style="color:#0f766e;">Ended</span>
+                </div>
+                <div class="dash-card rejected">
+                    <div class="dash-card-icon"><i class="far fa-times-circle"></i></div>
+                    <span class="dash-val">@Events.Count(e => e.Status == "Rejected")</span>
+                    <span class="dash-lbl">Rejected</span>
+                </div>
+            </div>
+
+            <div class="sub-tabs">
+                <button class="sub-tab-btn @(activeApprovalTab == "Pending" ? "active" : "inactive")" @onclick="@(() => activeApprovalTab = "Pending")">Pending (@Events.Count(e => e.Status == "Under Review" || e.Status == "Planned Event"))</button>
+                <button class="sub-tab-btn @(activeApprovalTab == "Approved" ? "active" : "inactive")" @onclick="@(() => activeApprovalTab = "Approved")">Approved (@Events.Count(e => e.Status == "Approved"))</button>
+                <button class="sub-tab-btn @(activeApprovalTab == "Published" ? "active" : "inactive")" @onclick="@(() => activeApprovalTab = "Published")">Published (@Events.Count(e => e.Status == "Published"))</button>
+                <button class="sub-tab-btn @(activeApprovalTab == "Ended" ? "active" : "inactive")" @onclick="@(() => activeApprovalTab = "Ended")">Ended (@Events.Count(e => e.Status == "Ended"))</button>
+                <button class="sub-tab-btn @(activeApprovalTab == "Rejected" ? "active" : "inactive")" @onclick="@(() => activeApprovalTab = "Rejected")">Rejected (@Events.Count(e => e.Status == "Rejected"))</button>
+            </div>
+
+            @foreach (var ev in FilteredEvents)
+            {
+                <div class="approval-card">
+                    <img src="@(!string.IsNullOrEmpty(ev.ImageUrl) ? ev.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80")" class="approval-img" />
+                    <div class="approval-content">
+                        <button class="view-btn" @onclick="@(() => ViewDetails(ev))">View</button>
+                        <h3 class="approval-title">
+                            @ev.Title 
+                            <span class="category-label" style="position:static; padding:2px 8px; font-size:10px;">@ev.Category</span>
+                            @if(ev.IsRescheduled) { <span class="rescheduled-badge">Rescheduled</span> }
+                        </h3>
+                        <p class="approval-desc">@ev.Description</p>
+                        
+                        <div class="approval-meta">
+                            <div class="meta-item"><i class="far fa-calendar-alt"></i> @ev.Date.ToString("MMM dd, yyyy")</div>
+                            <div class="meta-item"><i class="far fa-clock"></i> @ev.StartTime.ToString("h:mm tt") - @ev.EndTime.ToString("h:mm tt")</div>
+                            <div class="meta-item"><i class="fas fa-map-marker-alt"></i> @ev.Venue</div>
+                            <div class="meta-item"><i class="fas fa-users"></i> @ev.ExpectedParticipants expected</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Details Modal -->
+@if (selectedEvent != null && showDetails)
+{
+    <div class="overlay">
+        <div class="details-modal" style="width:900px; max-width:95vw;">
+            <button class="close-x" style="position:fixed; top:20px; right:20px; color:white; font-size:32px;" @onclick="@(() => showDetails = false)">&times;</button>
+            <div class="details-hero">
+                <img src="@(!string.IsNullOrEmpty(selectedEvent.ImageUrl) ? selectedEvent.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80")" />
+                <div class="review-badge">Under Review</div>
+            </div>
+            <div class="details-body">
+                <div class="details-header">
+                    <div>
+                        <h2 style="font-size:32px; color:var(--primary-blue); margin:0 0 8px 0;">@selectedEvent.Title</h2>
+                        <p style="color:var(--text-muted); margin:0;">@selectedEvent.Description</p>
+                    </div>
+                    @if (selectedEvent.Status == "Published")
+                    {
+                        <div class="action-group">
+                            <button class="btn-reject" style="background:#475569;" @onclick="EndEvent"><i class="fas fa-flag-checkered"></i> End Event</button>
+                        </div>
+                    }
+                    else if (selectedEvent.Status != "Approved" && selectedEvent.Status != "Rejected" && selectedEvent.Status != "Ended")
+                    {
+                        <div class="action-group">
+                            <button class="btn-reject" @onclick="OpenRejectForm"><i class="fas fa-times-circle"></i> Reject Event</button>
+                            <button class="btn-approve" @onclick="ConfirmApprove"><i class="fas fa-check-circle"></i> Approve Event</button>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="background:@(selectedEvent.Status == "Approved" ? "#f0fdf4" : selectedEvent.Status == "Published" ? "#eff6ff" : selectedEvent.Status == "Ended" ? "#f8fafc" : "#fef2f2"); color:@(selectedEvent.Status == "Approved" ? "#10b981" : selectedEvent.Status == "Published" ? "#3b82f6" : selectedEvent.Status == "Ended" ? "#475569" : "#ef4444"); padding:10px 20px; border-radius:12px; font-weight:700; border:1px solid @(selectedEvent.Status == "Approved" ? "#bbf7d0" : selectedEvent.Status == "Published" ? "#bfdbfe" : selectedEvent.Status == "Ended" ? "#cbd5e1" : "#fecaca");">
+                            <i class="@(selectedEvent.Status == "Approved" ? "fas fa-check-circle" : selectedEvent.Status == "Published" ? "fas fa-globe" : selectedEvent.Status == "Ended" ? "fas fa-flag-checkered" : "fas fa-times-circle")"></i> Event @selectedEvent.Status
+                        </div>
+                    }
+                </div>
+
+                <div class="section-title">Event Information</div>
+                <table class="info-table">
+                    <tr>
+                        <td class="label">Expected Number of Participants</td>
+                        <td>@selectedEvent.ExpectedParticipants</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Target Audience</td>
+                        <td>@selectedEvent.TargetAudience</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Organizing Ministry/Department</td>
+                        <td>@selectedEvent.OrganizingMinistry</td>
+                    </tr>
+                </table>
+
+                <!-- Program Flow -->
+                <div class="section-title">Event Program Details</div>
+                <table class="info-table">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Time</th>
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Program Title</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (selectedEvent.EventProgramSchedules.Any())
+                        {
+                            @foreach(var item in selectedEvent.EventProgramSchedules)
+                            {
+                                <tr>
+                                    <td style="width:200px; border:1px solid var(--border-color); padding:12px;">@item.StartTime.ToString("h:mm tt") - @item.EndTime.ToString("h:mm tt")</td>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@item.ProgramTitle</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="2" style="text-align:center; color:var(--text-muted); padding:12px;">No program details provided.</td></tr>
+                        }
+                    </tbody>
+                </table>
+
+                <!-- Guest List -->
+                <div class="section-title">Guest List</div>
+                <table class="info-table">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Name</th>
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Role/Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (selectedEvent.EventGuests.Any())
+                        {
+                            @foreach(var guest in selectedEvent.EventGuests)
+                            {
+                                <tr>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@guest.FullName</td>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@guest.GuestType</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="2" style="text-align:center; color:var(--text-muted); padding:12px;">No guests listed.</td></tr>
+                        }
+                    </tbody>
+                </table>
+
+                <!-- Personnel -->
+                <div class="section-title">Event Personnel</div>
+                <table class="info-table">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Name</th>
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Task/Assignment</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (selectedEvent.EventPersonnel.Any())
+                        {
+                            @foreach(var p in selectedEvent.EventPersonnel)
+                            {
+                                <tr>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@p.FullName</td>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@p.RoleName</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr><td colspan="2" style="text-align:center; color:var(--text-muted); padding:12px;">No personnel assigned.</td></tr>
+                        }
+                    </tbody>
+                </table>
+
+                <!-- Equipment & Transportation -->
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+                    <div>
+                        <div class="section-title">Equipment Requirements</div>
+                        <table class="info-table">
+                            <thead>
+                                <tr style="background:#f8fafc;">
+                                    <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Items</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (selectedEvent.EventEquipments.Any())
+                                {
+                                    @foreach(var eq in selectedEvent.EventEquipments)
+                                    {
+                                        <tr><td style="border:1px solid var(--border-color); padding:12px;">@eq.EquipmentName</td></tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td style="text-align:center; color:var(--text-muted); padding:12px;">No equipment required.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div>
+                        <div class="section-title">Transportation</div>
+                        <table class="info-table">
+                            <thead>
+                                <tr style="background:#f8fafc;">
+                                    <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Vehicle Type</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (selectedEvent.EventTransportations.Any())
+                                {
+                                    @foreach(var tr in selectedEvent.EventTransportations)
+                                    {
+                                        <tr><td style="border:1px solid var(--border-color); padding:12px;">@tr.VehicleType</td></tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr><td style="text-align:center; color:var(--text-muted); padding:12px;">No transportation required.</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Financial Details -->
+                <div class="section-title">Financial Details</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:16px;">
+                    <div>
+                        <div style="font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Funding Type</div>
+                        <div style="background:#f1f5f9; padding:8px 16px; border-radius:10px; color:#062b63; font-weight:700; font-size:14px;">@selectedEvent.FundingType</div>
+                    </div>
+                    <div>
+                        <div style="font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Target Participants</div>
+                        <div style="background:#f1f5f9; padding:8px 16px; border-radius:10px; color:#062b63; font-weight:700; font-size:14px;">@selectedEvent.ExpectedNumberOfParticipants</div>
+                    </div>
+                </div>
+
+                @if (selectedEvent.FundingType == "Ticketed Event (Per Participant Fee)")
+                {
+                    <div style="margin-bottom:16px;">
+                        <div style="font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Ticket Price</div>
+                        <div style="background:#f0fdf4; padding:8px 16px; border-radius:10px; color:#166534; font-weight:700; font-size:14px; border:1px solid #dcfce7;">₱@selectedEvent.TicketedPrice.ToString("N2")</div>
+                    </div>
+                }
+                else if (selectedEvent.FundingType == "Church Sponsored (Fully Funded)")
+                {
+                    <div style="margin-bottom:16px;">
+                        <div style="font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Allocated Budget Per Person</div>
+                        <div style="background:#f0fdf4; padding:8px 16px; border-radius:10px; color:#166534; font-weight:700; font-size:14px; border:1px solid #dcfce7;">₱@selectedEvent.AllocatedBudgetPerPerson.ToString("N2")</div>
+                    </div>
+                }
+
+                <table class="info-table">
+                    <thead>
+                        <tr style="background:#f8fafc;">
+                            <th style="padding:12px; text-align:left; color:var(--primary-blue); border:1px solid var(--border-color);">Expense Item</th>
+                            <th style="padding:12px; text-align:right; color:var(--primary-blue); border:1px solid var(--border-color);">Estimated Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (selectedEvent.EventExpenses.Any())
+                        {
+                            @foreach(var ex in selectedEvent.EventExpenses)
+                            {
+                                <tr>
+                                    <td style="border:1px solid var(--border-color); padding:12px;">@ex.ItemName</td>
+                                    <td style="border:1px solid var(--border-color); padding:12px; text-align:right;">₱@ex.EstimatedCost.ToString("N2")</td>
+                                </tr>
+                            }
+                            <tr style="background:#f1f5f9; font-weight:800;">
+                                <td style="border:1px solid var(--border-color); padding:12px; text-align:right;">Total Estimated Budget:</td>
+                                <td style="border:1px solid var(--border-color); padding:12px; text-align:right; color:var(--accent-blue);">₱@selectedEvent.TotalEstimatedBudget.ToString("N2")</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            <tr><td colspan="2" style="text-align:center; color:var(--text-muted); padding:12px;">No expense items listed.</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Rejection Modal -->
+@if (showRejectForm)
+{
+    <div class="overlay">
+        <div class="reject-modal">
+            <div class="reject-header">
+                <button class="close-x" @onclick="@(() => showRejectForm = false)">&times;</button>
+                <div class="icon-box"><i class="fas fa-map-marker-alt"></i></div>
+                <h3>Reject Event Form</h3>
+                <p>Please provide the reason for rejecting this event. This will be sent to the event organizer for reference and revision.</p>
+            </div>
+            <div class="reject-body">
+                <div class="section-title" style="margin-top:0;">Event Information</div>
+                <div class="form-grid">
+                    <div class="input-group">
+                        <label>Event Name</label>
+                        <input type="text" value="@selectedEvent?.Title" disabled />
+                    </div>
+                    <div class="input-group">
+                        <label>Ministry</label>
+                        <input type="text" value="@selectedEvent?.OrganizingMinistry" disabled />
+                    </div>
+                    <div class="input-group">
+                        <label>Event Date</label>
+                        <input type="text" value="@selectedEvent?.Date.ToString("MMM dd, yyyy")" disabled />
+                    </div>
+                </div>
+
+                <div class="section-title">Reject Details</div>
+                <div class="checkbox-group">
+                    <label class="checkbox-item">
+                        <input type="checkbox" @bind="rejectionReason1" /> Venue not available
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" @bind="rejectionReason2" /> Budget or Resource Issue
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" @bind="rejectionReason3" /> Policy and Guidelines Concern
+                    </label>
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <label class="checkbox-item" style="white-space:nowrap;">
+                            <input type="checkbox" @bind="rejectionReasonOther" /> Others
+                        </label>
+                        <input type="text" placeholder="Please Specify" style="flex:1; padding:8px; border:1px solid var(--border-color); border-radius:8px;" @bind="otherReasonText" />
+                    </div>
+                </div>
+
+                <div class="radio-group">
+                    <label class="checkbox-item">
+                        <input type="radio" name="action" value="Revision" checked /> Send Back for Revision
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="radio" name="action" value="Close" /> Reject and Close Event
+                    </label>
+                </div>
+            </div>
+            <div class="reject-footer">
+                <button class="btn-sec" @onclick="@(() => showRejectForm = false)">Cancel</button>
+                <button class="btn-pri" @onclick="SubmitRejection">Submit</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeMainTab = "Reports";
+    private string activeApprovalTab = "Pending";
+    private string searchText = "";
+    private List<EventModel> Events = new();
+    private EventModel? selectedEvent;
+    private bool showDetails = false;
+    private bool showRejectForm = false;
+
+    // Reject Form State
+    private bool rejectionReason1;
+    private bool rejectionReason2;
+    private bool rejectionReason3;
+    private bool rejectionReasonOther;
+    private string otherReasonText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await EventService.LoadEventsAsync();
+        Events = EventService.Events;
+    }
+
+    private void LoadEvents()
+    {
+        Events = EventService.Events;
+    }
+
+    private IEnumerable<EventModel> FilteredEvents
+    {
+        get
+        {
+            var query = Events.AsEnumerable();
+
+            // Filter by Search Text
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                query = query.Where(e => (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) || 
+                                       (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                                       (e.Date.ToString("MMM dd, yyyy").Contains(searchText, StringComparison.OrdinalIgnoreCase)) ||
+                                       (e.Date.ToString("MM/dd/yyyy").Contains(searchText, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            // Filter by Tab
+            if (activeMainTab == "Reports")
+            {
+                return query.Where(e => e.IsReportGenerated);
+            }
+            else
+            {
+                return activeApprovalTab switch
+                {
+                    "Pending" => query.Where(e => e.Status == "Under Review" || e.Status == "Planned Event" || e.Status == "Rescheduled"),
+                    "Approved" => query.Where(e => e.Status == "Approved"),
+                    "Published" => query.Where(e => e.Status == "Published"),
+                    "Ended" => query.Where(e => e.Status == "Ended"),
+                    "Rejected" => query.Where(e => e.Status == "Rejected"),
+                    _ => query
+                };
+            }
+        }
+    }
+
+    private async void ViewDetails(EventModel ev)
+    {
+        selectedEvent = ev;
+        showDetails = true;
+        // Update status to Under Review if it's planned (simulated)
+        if (selectedEvent.Status == "Planned Event") {
+            selectedEvent.Status = "Under Review";
+            await EventService.UpdateEventAsync(selectedEvent);
+        }
+    }
+
+    private async Task ConfirmApprove()
+    {
+        if (selectedEvent == null) return;
+        selectedEvent.Status = "Approved";
+        await EventService.UpdateEventAsync(selectedEvent);
+        showDetails = false;
+        StateHasChanged();
+    }
+
+    private async Task PublishEvent()
+    {
+        if (selectedEvent == null) return;
+        selectedEvent.Status = "Published";
+        await EventService.UpdateEventAsync(selectedEvent);
+        showDetails = false;
+        StateHasChanged();
+    }
+
+    private async Task EndEvent()
+    {
+        if (selectedEvent == null) return;
+        selectedEvent.Status = "Ended";
+        await EventService.UpdateEventAsync(selectedEvent);
+        showDetails = false;
+        StateHasChanged();
+    }
+
+    private void OpenRejectForm()
+    {
+        showRejectForm = true;
+    }
+
+    private void NavigateToAttendance()
+    {
+        if (selectedEvent != null)
+        {
+            NavManager.NavigateTo($"/head-pastor/event-attendance/{selectedEvent.Id}");
+        }
+    }
+
+    private async Task SubmitRejection()
+    {
+        if (selectedEvent == null) return;
+        selectedEvent.Status = "Rejected";
+        await EventService.UpdateEventAsync(selectedEvent);
+        showRejectForm = false;
+        showDetails = false;
+        
+        // Reset form
+        rejectionReason1 = false;
+        rejectionReason2 = false;
+        rejectionReason3 = false;
+        rejectionReasonOther = false;
+        otherReasonText = "";
+        StateHasChanged();
+    }
+}

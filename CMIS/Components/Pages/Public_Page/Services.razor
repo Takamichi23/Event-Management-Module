@@ -1,0 +1,472 @@
+@page "/services"
+@layout CMIS.Components.Layout.LoginLayout
+@rendermode InteractiveServer
+@using System.Net.Http.Json
+@using System.Text.Json
+
+<PageTitle>My Services — Jesus Our Banner Ministry</PageTitle>
+<HeadContent>
+    <meta name="description" content="View all your church services and their status." />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+</HeadContent>
+
+<nav class="site-navbar">
+    <div class="navbar-inner">
+        <a href="/" class="navbar-brand" id="navbar-brand">
+            <img src="images/worship-hero.png" alt="" class="brand-icon" aria-hidden="true" />
+            <div class="brand-text">
+                <span class="brand-title">JESUS OUR BANNER</span>
+                <span class="brand-subtitle">MINISTRY</span>
+            </div>
+        </a>
+        <div class="navbar-links">
+            <a href="/" class="nav-link">HOME</a>
+            <a href="/appointments" class="nav-link">APPOINTMENTS</a>
+            <a href="/services" class="nav-link active-link">SERVICES</a>
+            <a href="/login" class="nav-link">SIGN IN</a>
+        </div>
+    </div>
+</nav>
+
+<section class="services-page">
+    <div class="page-container">
+
+        <div class="page-header">
+            <div class="header-left">
+                <h1 class="page-title">My Services</h1>
+                <p class="page-subtitle">Track your church service requests and their requirements</p>
+            </div>
+        </div>
+
+        <div class="filter-tabs">
+            @foreach (var f in new[] { "all","in progress","scheduled","rescheduled","cancelled","complete" })
+            {
+                <button class="filter-tab @(activeFilter == f ? "active" : "")" @onclick="() => SetFilter(f)">
+                    <i class="@GetFilterIcon(f)"></i> @FormatFilter(f)
+                    <span class="tab-count">@(f == "all" ? allServices.Count : allServices.Count(s => s.Status == f))</span>
+                </button>
+            }
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="loading-state">
+                <div class="spinner"></div>
+                <p>Loading services...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(loadError))
+        {
+            <div class="error-banner" id="load-error">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>@loadError</span>
+                <button class="btn-retry" @onclick="LoadAll">Retry</button>
+            </div>
+        }
+        else if (FilteredServices.Count == 0)
+        {
+            <div class="empty-state">
+                <div class="empty-icon"><i class="fas fa-concierge-bell"></i></div>
+                <h3>No services found</h3>
+                <p>@(activeFilter == "all" ? "You have no service requests yet." : $"No {FormatFilter(activeFilter)} services.")</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrapper">
+                <table class="services-table" id="services-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Person / Subject</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var svc in FilteredServices)
+                        {
+                            <tr class="svc-row clickable" id="svc-row-@svc.Id" @onclick="() => OpenDetail(svc)">
+                                <td class="id-cell">#@svc.Id</td>
+                                <td>
+                                    <div class="service-badge">
+                                        <i class="@GetTypeIcon(svc.Type)"></i>
+                                        @FormatType(svc.Type)
+                                    </div>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(svc.PersonName) ? "—" : svc.PersonName)</td>
+                                <td>
+                                    <div class="date-text">@FormatDate(svc.Date)</div>
+                                </td>
+                                <td>
+                                    <span class="status-pill @GetStatusClass(svc.Status)">@FormatStatus(svc.Status)</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+@if (showDetail && selectedSvc != null)
+{
+    <div class="modal-overlay" @onclick="() => { showDetail = false; }">
+        <div class="modal-content detail-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h2 class="modal-title">
+                    <i class="@GetTypeIcon(selectedSvc.Type)"></i>
+                    <span>@FormatType(selectedSvc.Type) #@selectedSvc.Id</span>
+                </h2>
+                <button class="modal-close" @onclick="() => { showDetail = false; }" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                @if (isLoadingDetail)
+                {
+                    <div class="loading-state compact">
+                        <div class="spinner"></div>
+                        <p>Loading details...</p>
+                    </div>
+                }
+                else if (detailJson != null)
+                {
+                    var d = detailJson.Value;
+
+                    <div class="confirm-summary">
+                        <div class="summary-card">
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-info-circle"></i> Status</span>
+                                <span class="summary-value"><span class="status-pill @GetStatusClass(selectedSvc.Status)">@FormatStatus(selectedSvc.Status)</span></span>
+                            </div>
+                            <div class="summary-divider"></div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-calendar-day"></i> Date</span>
+                                <span class="summary-value">@FormatDate(TryStr(d, "implementationDate"))</span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="far fa-clock"></i> Time</span>
+                                <span class="summary-value">
+                                    @(string.IsNullOrWhiteSpace(TryStr(d, "startTime")) ? "Unassigned" : TryStr(d, "startTime") + " – " + TryStr(d, "endTime"))
+                                </span>
+                            </div>
+                            <div class="summary-row">
+                                <span class="summary-label"><i class="fas fa-map-marker-alt"></i> Venue</span>
+                                <span class="summary-value">@(string.IsNullOrWhiteSpace(TryStr(d, "venue")) ? "Unassigned" : TryStr(d, "venue"))</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (selectedSvc.Type == "baptism")
+                    {
+                        <div class="section-title"><i class="fas fa-user"></i> Person Being Baptized</div>
+                        @ProfileCard(TryStr(d,"profileFirstName"), TryStr(d,"profileMiddleName"), TryStr(d,"profileLastName"), TryStr(d,"profileSex"), TryStr(d,"profileBirthDate"), TryStr(d,"profileContact"))
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-clipboard-list"></i> Other Details</div>
+                        <div class="confirm-summary">
+                            <div class="summary-card">
+                                <div class="summary-row"><span class="summary-label">Occupation</span><span class="summary-value">@NullOrDash(TryStr(d,"occupation"))</span></div>
+                            </div>
+                        </div>
+                    }
+                    else if (selectedSvc.Type == "counsel")
+                    {
+                        <div class="section-title"><i class="fas fa-user"></i> Counselee</div>
+                        @ProfileCard(TryStr(d,"profileFirstName"), TryStr(d,"profileMiddleName"), TryStr(d,"profileLastName"), TryStr(d,"profileSex"), TryStr(d,"profileBirthDate"), TryStr(d,"profileContact"))
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-clipboard-list"></i> Other Details</div>
+                        <div class="confirm-summary">
+                            <div class="summary-card">
+                                <div class="summary-row"><span class="summary-label">Counsel For</span><span class="summary-value">@NullOrDash(TryStr(d,"counselFor"))</span></div>
+                            </div>
+                        </div>
+                    }
+                    else if (selectedSvc.Type == "wedding")
+                    {
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-clipboard-list"></i> Wedding Details</div>
+                        <div class="confirm-summary">
+                            <div class="summary-card">
+                                <div class="summary-row"><span class="summary-label">Marriage Type</span><span class="summary-value">@NullOrDash(TryStr(d,"marriageType"))</span></div>
+                                <div class="summary-row"><span class="summary-label">Marriage Certificate</span><span class="summary-value">@BoolLabel(d,"marriageCert")</span></div>
+                                <div class="summary-row"><span class="summary-label">Recommendation Letter</span><span class="summary-value">@BoolLabel(d,"recommendationLetter")</span></div>
+                                <div class="summary-row"><span class="summary-label">Affidavit</span><span class="summary-value">@BoolLabel(d,"affidavit")</span></div>
+                            </div>
+                        </div>
+                        @if (d.TryGetProperty("weddingProfiles", out var wps2) && wps2.ValueKind == JsonValueKind.Array && wps2.GetArrayLength() > 0)
+                        {
+                            <div class="section-title" style="margin-top:1rem;"><i class="fas fa-heart"></i> Spouses</div>
+                            @foreach (var wp in wps2.EnumerateArray())
+                            {
+                                @ProfileCard(TryStr(wp,"profileFirstName"), TryStr(wp,"profileMiddleName"), TryStr(wp,"profileLastName"), TryStr(wp,"profileSex"), TryStr(wp,"profileBirthDate"), TryStr(wp,"profileContact"))
+                            }
+                        }
+                        @if (d.TryGetProperty("weddingWitnesses", out var wws2) && wws2.ValueKind == JsonValueKind.Array && wws2.GetArrayLength() > 0)
+                        {
+                            <div class="section-title" style="margin-top:1rem;"><i class="fas fa-user-friends"></i> Witnesses</div>
+                            <div class="pill-list">
+                                @foreach (var ww in wws2.EnumerateArray())
+                                {
+                                    <span class="witness-pill"><i class="fas fa-user-check"></i> @(TryStr(ww,"profileFirstName") + " " + TryStr(ww,"profileLastName"))</span>
+                                }
+                            </div>
+                        }
+                    }
+                    else if (selectedSvc.Type == "child dedication")
+                    {
+                        <div class="section-title"><i class="fas fa-baby"></i> Child</div>
+                        @ProfileCard(TryStr(d,"childFirstName"), TryStr(d,"childMiddleName"), TryStr(d,"childLastName"), TryStr(d,"childSex"), TryStr(d,"childBirthDate"), TryStr(d,"childContact"))
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-clipboard-list"></i> Other Details</div>
+                        <div class="confirm-summary">
+                            <div class="summary-card">
+                                <div class="summary-row"><span class="summary-label">Place of Birth</span><span class="summary-value">@NullOrDash(TryStr(d,"childPlaceOfBirth"))</span></div>
+                                <div class="summary-row"><span class="summary-label">Weight at Birth (kg)</span><span class="summary-value">@NullOrDash(TryStr(d,"childWeightAtBirth"))</span></div>
+                                <div class="summary-row"><span class="summary-label">Birth Certificate</span><span class="summary-value">@BoolLabel(d,"birthCert")</span></div>
+                                <div class="summary-row"><span class="summary-label">Parents' Marriage Date</span><span class="summary-value">@FormatDate(TryStr(d,"parentsMarriageDate"))</span></div>
+                                <div class="summary-row">
+                                    <span class="summary-label">Parents' Marriage Place</span>
+                                    <span class="summary-value">@(NullOrDash(TryStr(d,"parentsMarriagePlaceMunicipality")) + ", " + NullOrDash(TryStr(d,"parentsMarriagePlaceProvince")) + ", " + NullOrDash(TryStr(d,"parentsMarriagePlaceCountry")))</span>
+                                </div>
+                            </div>
+                        </div>
+                        @if (d.TryGetProperty("parentProfiles", out var pps2) && pps2.ValueKind == JsonValueKind.Array && pps2.GetArrayLength() > 0)
+                        {
+                            <div class="section-title" style="margin-top:1rem;"><i class="fas fa-users"></i> Parents</div>
+                            @foreach (var pp in pps2.EnumerateArray())
+                            {
+                                @ProfileCard(TryStr(pp,"profileFirstName"), TryStr(pp,"profileMiddleName"), TryStr(pp,"profileLastName"), TryStr(pp,"profileSex"), TryStr(pp,"profileBirthDate"), TryStr(pp,"profileContact"))
+                            }
+                        }
+                        @if (d.TryGetProperty("witnesses", out var cdws2) && cdws2.ValueKind == JsonValueKind.Array && cdws2.GetArrayLength() > 0)
+                        {
+                            <div class="section-title" style="margin-top:1rem;"><i class="fas fa-user-friends"></i> Sponsors / Witnesses</div>
+                            <div class="pill-list">
+                                @foreach (var cw in cdws2.EnumerateArray())
+                                {
+                                    <span class="witness-pill"><i class="fas fa-user-check"></i> @(TryStr(cw,"profileFirstName") + " " + TryStr(cw,"profileLastName"))</span>
+                                }
+                            </div>
+                        }
+                    }
+                    else if (selectedSvc.Type == "funeral")
+                    {
+                        <div class="section-title"><i class="fas fa-user"></i> Deceased</div>
+                        @ProfileCard(TryStr(d,"deceasedFirstName"), TryStr(d,"deceasedMiddleName"), TryStr(d,"deceasedLastName"), TryStr(d,"deceasedSex"), TryStr(d,"deceasedBirthDate"), TryStr(d,"deceasedContact"))
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-user-friends"></i> Next of Kin</div>
+                        @ProfileCard(TryStr(d,"kinFirstName"), TryStr(d,"kinMiddleName"), TryStr(d,"kinLastName"), TryStr(d,"kinSex"), TryStr(d,"kinBirthDate"), TryStr(d,"kinContact"))
+                        <div class="section-title" style="margin-top:1rem;"><i class="fas fa-clipboard-list"></i> Other Details</div>
+                        <div class="confirm-summary">
+                            <div class="summary-card">
+                                <div class="summary-row"><span class="summary-label">Relationship to Deceased</span><span class="summary-value">@NullOrDash(TryStr(d,"kinRelationshipToDeceased"))</span></div>
+                                <div class="summary-row"><span class="summary-label">Date of Death</span><span class="summary-value">@FormatDate(TryStr(d,"dateOfDeath"))</span></div>
+                                <div class="summary-row"><span class="summary-label">Cause of Death</span><span class="summary-value">@NullOrDash(TryStr(d,"causeOfDeath"))</span></div>
+                                <div class="summary-row"><span class="summary-label">PSA Death Cert No.</span><span class="summary-value">@NullOrDash(TryStr(d,"psaDeathCertNo"))</span></div>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="section-title" style="margin-top:1rem;"><i class="fas fa-tasks"></i> Requirements Checklist</div>
+                    <div class="req-list">
+                        @foreach (var req in GetRequirements(selectedSvc.Type, d))
+                        {
+                            <div class="req-item @(req.Met ? "req-met" : "req-unmet")">
+                                <i class="@(req.Met ? "fas fa-check-circle" : "fas fa-times-circle")"></i>
+                                <span>@req.Label</span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string Api = "http://localhost:5096";
+
+    private List<SvcItem> allServices = new();
+    private string activeFilter = "all";
+    private bool isLoading = true;
+    private string? loadError;
+
+    private bool showDetail = false;
+    private SvcItem? selectedSvc;
+    private bool isLoadingDetail = false;
+    private JsonElement? detailJson;
+
+    private List<SvcItem> FilteredServices =>
+        activeFilter == "all" ? allServices
+        : allServices.Where(s => s.Status == activeFilter).ToList();
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        isLoading = true; loadError = null; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var results = new List<SvcItem>();
+
+            var tasks = new Task<List<SvcItem>>[]
+            {
+                FetchType(http, opts, "Baptism",         "baptism",          "baptismId"),
+                FetchType(http, opts, "Counsel",         "counsel",          "counselId"),
+                FetchType(http, opts, "Wedding",         "wedding",          "weddingId"),
+                FetchType(http, opts, "ChildDedication", "child dedication", "childDedicationId"),
+                FetchType(http, opts, "Funeral",         "funeral",          "funeralId"),
+            };
+
+            await Task.WhenAll(tasks);
+            foreach (var t in tasks) results.AddRange(t.Result);
+
+            allServices = results
+                .OrderByDescending(s => s.Id)
+                .ToList();
+        }
+        catch (Exception ex) { loadError = $"Could not load services. ({ex.Message})"; }
+        finally { isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task<List<SvcItem>> FetchType(HttpClient http, JsonSerializerOptions opts, string endpoint, string type, string idField)
+    {
+        var list = new List<SvcItem>();
+        try
+        {
+            var raw = await http.GetStringAsync($"{Api}/{endpoint}/all");
+            var arr = JsonSerializer.Deserialize<JsonElement>(raw, opts);
+            if (arr.ValueKind != JsonValueKind.Array) return list;
+
+            foreach (var el in arr.EnumerateArray())
+            {
+                if (!el.TryGetProperty(idField, out var idProp)) continue;
+
+                string personName = type switch {
+                    "baptism" or "counsel" => TryStr(el, "personName"),
+                    "wedding"              => "Couple",
+                    "child dedication"     => TryStr(el, "childName"),
+                    "funeral"              => TryStr(el, "deceasedName"),
+                    _                     => ""
+                };
+
+                list.Add(new SvcItem {
+                    Id          = idProp.GetInt32(),
+                    Type        = type,
+                    PersonName  = personName,
+                    Date        = TryStr(el, "implementationDate"),
+                    Status      = TryStr(el, "status").ToLower(),
+                });
+            }
+        }
+        catch { /* swallow individual type errors */ }
+        return list;
+    }
+
+    private async Task OpenDetail(SvcItem svc)
+    {
+        selectedSvc = svc; showDetail = true; detailJson = null;
+        isLoadingDetail = true; StateHasChanged();
+        try
+        {
+            using var http = new HttpClient();
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            string ep = svc.Type switch {
+                "baptism"          => $"{Api}/Baptism/{svc.Id}",
+                "counsel"          => $"{Api}/Counsel/{svc.Id}",
+                "wedding"          => $"{Api}/Wedding/{svc.Id}",
+                "child dedication" => $"{Api}/ChildDedication/{svc.Id}",
+                "funeral"          => $"{Api}/Funeral/{svc.Id}",
+                _                  => ""
+            };
+            if (!string.IsNullOrEmpty(ep))
+                detailJson = await http.GetFromJsonAsync<JsonElement>(ep, opts);
+        }
+        catch { }
+        finally { isLoadingDetail = false; StateHasChanged(); }
+    }
+
+    RenderFragment ProfileCard(string? first, string? mid, string? last, string? sex, string? birth, string? contact) => __builder =>
+    {
+        <div class="profile-card">
+            <div class="pc-avatar"><i class="fas fa-user"></i></div>
+            <div class="pc-info">
+                <div class="pc-name">@(string.Join(" ", new[] { first, mid, last }.Where(x => !string.IsNullOrWhiteSpace(x))))</div>
+                <div class="pc-meta">
+                    @if (!string.IsNullOrWhiteSpace(sex)) { <span><i class="fas fa-venus-mars"></i> @sex</span> }
+                    @if (!string.IsNullOrWhiteSpace(birth)) { <span><i class="fas fa-birthday-cake"></i> @birth</span> }
+                    @if (!string.IsNullOrWhiteSpace(contact)) { <span><i class="fas fa-phone"></i> @contact</span> }
+                </div>
+            </div>
+        </div>
+    };
+
+    record Req(string Label, bool Met);
+
+    private List<Req> GetRequirements(string type, JsonElement d)
+    {
+        return type switch {
+            "baptism"  => new() { new("Person profile assigned", !string.IsNullOrWhiteSpace(TryStr(d,"profileFirstName"))) },
+            "counsel"  => new() { new("Person profile assigned", !string.IsNullOrWhiteSpace(TryStr(d,"profileFirstName"))) },
+            "wedding"  => new() {
+                new("Exactly 2 spouses assigned", d.TryGetProperty("weddingProfiles", out var wp) && wp.GetArrayLength() == 2),
+                new("One Male (Groom) assigned",  d.TryGetProperty("weddingProfiles", out var wp2) && wp2.EnumerateArray().Any(p => TryStr(p,"profileSex").Equals("Male",StringComparison.OrdinalIgnoreCase))),
+                new("One Female (Bride) assigned",d.TryGetProperty("weddingProfiles", out var wp3) && wp3.EnumerateArray().Any(p => TryStr(p,"profileSex").Equals("Female",StringComparison.OrdinalIgnoreCase))),
+            },
+            "child dedication" => new() {
+                new("Child profile assigned",         !string.IsNullOrWhiteSpace(TryStr(d,"childFirstName"))),
+                new("At least 1 parent assigned",     d.TryGetProperty("parentProfiles", out var pp) && pp.GetArrayLength() >= 1),
+            },
+            "funeral" => new() {
+                new("Deceased profile assigned", !string.IsNullOrWhiteSpace(TryStr(d,"deceasedFirstName"))),
+                new("Next of Kin assigned",      !string.IsNullOrWhiteSpace(TryStr(d,"kinFirstName"))),
+            },
+            _ => new()
+        };
+    }
+
+    private void SetFilter(string f) => activeFilter = f;
+
+    private string FormatFilter(string f) => f == "all" ? "All" : FormatStatus(f);
+    private string FormatStatus(string s) => s switch {
+        "in progress" => "In Progress", "scheduled" => "Scheduled", "rescheduled" => "Rescheduled",
+        "cancelled" => "Cancelled", "complete" => "Complete", _ => s
+    };
+    private string GetFilterIcon(string f) => f switch {
+        "all" => "fas fa-list", "in progress" => "fas fa-spinner", "scheduled" => "fas fa-calendar-check",
+        "rescheduled" => "fas fa-calendar-alt", "cancelled" => "fas fa-times-circle",
+        "complete" => "fas fa-flag-checkered", _ => "fas fa-circle"
+    };
+    private string GetTypeIcon(string t) => t switch {
+        "baptism" => "fas fa-water", "counsel" => "fas fa-comments", "wedding" => "fas fa-heart",
+        "child dedication" => "fas fa-baby", "funeral" => "fas fa-cross", _ => "fas fa-concierge-bell"
+    };
+    private string FormatType(string t) => t switch {
+        "baptism" => "Baptism", "counsel" => "Counsel", "wedding" => "Wedding",
+        "child dedication" => "Child Dedication", "funeral" => "Funeral", _ => t
+    };
+    private string GetStatusClass(string s) => s switch {
+        "in progress" => "status-inprogress", "scheduled" => "status-scheduled",
+        "rescheduled" => "status-rescheduled", "cancelled" => "status-cancelled",
+        "complete" => "status-complete", _ => ""
+    };
+    private string FormatDate(string? d) => DateTime.TryParse(d, out var dt) ? dt.ToString("MMM dd, yyyy") : (string.IsNullOrWhiteSpace(d) ? "None" : d);
+    private string NullOrDash(string? v) => string.IsNullOrWhiteSpace(v) ? "—" : v;
+    private string BoolLabel(JsonElement el, string key) =>
+        el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.True ? "✅ Yes" : "❌ No";
+    private string TryStr(JsonElement el, string key)
+    {
+        try { return el.TryGetProperty(key, out var v) && v.ValueKind != JsonValueKind.Null ? (v.GetString() ?? "") : ""; }
+        catch { return ""; }
+    }
+
+    private class SvcItem
+    {
+        public int Id { get; set; }
+        public string Type { get; set; } = "";
+        public string PersonName { get; set; } = "";
+        public string? Date { get; set; }
+        public string Status { get; set; } = "";
+    }
+}

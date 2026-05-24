@@ -1,0 +1,370 @@
+@page "/leadership/event-details/{Id}"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.BODEventService BODEventService
+@inject NavigationManager NavManager
+
+@if (eventModel == null)
+{
+    <div style="padding:40px; text-align:center;">Loading event...</div>
+}
+else
+{
+    <div class="details-container" style="padding: 24px;">
+        <button class="back-btn" @onclick="GoBack" style="background:transparent; border:none; color:#64748b; cursor:pointer; font-size:16px; margin-bottom:24px; display:flex; align-items:center; gap:8px;">
+            <i class="fas fa-arrow-left"></i> Events Management
+        </button>
+
+        <div class="hero-card" style="background:#fff; border-radius:24px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,0.05); margin-bottom:32px;">
+            <div style="position:relative; height:300px;">
+                <img src="@(!string.IsNullOrEmpty(eventModel.ImageUrl) ? eventModel.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80")" style="width:100%; height:100%; object-fit:cover;" />
+                <div style="position:absolute; top:24px; right:24px; background:@GetStatusColor(eventModel.Status).bg; color:@GetStatusColor(eventModel.Status).text; padding:8px 20px; border-radius:30px; font-size:14px; font-weight:700; border:1px solid @GetStatusColor(eventModel.Status).border; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
+                    @eventModel.Status
+                </div>
+            </div>
+            
+            <div class="hero-content" style="padding:40px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="flex:1;">
+                        <h2 style="font-size:32px; font-weight:800; color:#062b63; margin:0 0 16px 0;">@eventModel.Title</h2>
+                        <div style="display:flex; flex-wrap:wrap; gap:24px; margin-bottom:24px;">
+                            <div style="display:flex; align-items:center; gap:8px; color:#475569; font-weight:500;"><i class="far fa-calendar-alt" style="color:#062b63;"></i> @eventModel.Date.ToString("MMMM dd, yyyy")</div>
+                            <div style="display:flex; align-items:center; gap:8px; color:#475569; font-weight:500;"><i class="fas fa-map-marker-alt" style="color:#062b63;"></i> @eventModel.Venue</div>
+                            <div style="display:flex; align-items:center; gap:8px; color:#475569; font-weight:500;"><i class="fas fa-tag" style="color:#062b63;"></i> @eventModel.Category</div>
+                            <div style="display:flex; align-items:center; gap:8px; color:#475569; font-weight:500;"><i class="fas fa-users" style="color:#062b63;"></i> @eventModel.ExpectedParticipants expected</div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:24px; background:#f8fafc; padding:20px; border-radius:16px;">
+                            <div>
+                                <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Target Audience</span>
+                                <span style="font-weight:600; color:#475569;">@eventModel.TargetAudience</span>
+                            </div>
+                            <div>
+                                <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:4px;">Organizing Body</span>
+                                <span style="font-weight:600; color:#475569;">@eventModel.OrganizingBody</span>
+                            </div>
+                        </div>
+                        
+                        @if (!string.IsNullOrEmpty(eventModel.AssignedLeaderName))
+                        {
+                            <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:12px; padding:16px; display:flex; align-items:center; gap:12px; margin-bottom:24px;">
+                                <i class="fas fa-user-tie" style="color:#0369a1; font-size:20px;"></i>
+                                <div style="flex:1;">
+                                    <span style="display:block; font-size:12px; color:#0369a1; font-weight:700; text-transform:uppercase;">Assigned National Leader</span>
+                                    <span style="font-weight:700; color:#0c4a6e; font-size:18px;">@eventModel.AssignedLeaderName</span>
+                                </div>
+                                @if (eventModel.Status == "Published")
+                                {
+                                    <button @onclick="() => showAssignModal = true" style="background:transparent; border:none; color:#0369a1; font-weight:700; cursor:pointer; font-size:14px; text-decoration:underline;">Change</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    
+                    <div style="display:flex; flex-direction:column; gap:12px;">
+                        @if (eventModel.Status == "In Progress" || eventModel.Status == "Ended")
+                        {
+                            <button @onclick="NavigateToAttendance" style="padding:14px 28px; background:#fff; color:#062b63; border:1px solid #062b63; border-radius:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px;"><i class="fas fa-user-check"></i> Attendance Tracker</button>
+                        }
+                        @if (eventModel.Status == "Published")
+                        {
+                            <button @onclick="() => showAssignModal = true" style="padding:14px 28px; background:#062b63; color:#fff; border:none; border-radius:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px;">
+                                <i class="fas fa-user-plus"></i> @(eventModel.AssignedLeaderId == null ? "Assign National Leader" : "Change Leader")
+                            </button>
+                        }
+                        @if (eventModel.Status == "Ended" && !eventModel.IsReportGenerated)
+                        {
+                            <button @onclick="() => showReportModal = true" style="padding:14px 28px; background:#062b63; color:#fff; border:none; border-radius:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px;"><i class="far fa-file-alt"></i> Generate Report</button>
+                        }
+                        else if (eventModel.IsReportGenerated)
+                        {
+                            <div style="padding:14px 28px; background:#ecfdf5; color:#10b981; border:1px solid #a7f3d0; border-radius:12px; font-weight:700; display:flex; align-items:center; gap:10px;"><i class="fas fa-check-circle"></i> Report Generated</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="background:#fff; border-radius:24px; padding:32px; box-shadow:0 4px 24px rgba(0,0,0,0.03); margin-bottom:32px;">
+            <h3 style="font-size:20px; font-weight:700; color:#062b63; margin:0 0 24px 0;">Event Details</h3>
+            
+            <div style="margin-bottom:32px;">
+                <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-list-ul"></i> Program Flow</h4>
+                <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:12px 16px; text-align:left; color:#64748b;">Time</th>
+                            <th style="padding:12px 16px; text-align:left; color:#64748b;">Program Title</th>
+                        </tr>
+                        @foreach (var item in eventModel.BODProgramSchedules)
+                        {
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:12px 16px;">@item.StartTime.ToString("hh:mm tt") - @item.EndTime.ToString("hh:mm tt")</td>
+                                <td style="padding:12px 16px;">@item.ProgramTitle</td>
+                            </tr>
+                        }
+                    </table>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-bottom:32px;">
+                <div>
+                    <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-user-friends"></i> Guest List</h4>
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Name</th>
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Guest Type</th>
+                            </tr>
+                            @foreach (var guest in eventModel.BODGuests)
+                            {
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:12px 16px;">@guest.FullName</td>
+                                    <td style="padding:12px 16px;">@guest.GuestType</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-user-shield"></i> Personnel</h4>
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Name</th>
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Role</th>
+                            </tr>
+                            @foreach (var p in eventModel.BODPersonnel)
+                            {
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:12px 16px;">@p.FullName</td>
+                                    <td style="padding:12px 16px;">@p.RoleName</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-bottom:32px;">
+                <div>
+                    <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-tools"></i> Equipment</h4>
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Item</th>
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Remarks</th>
+                            </tr>
+                            @foreach (var eq in eventModel.BODEquipment)
+                            {
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:12px 16px;">@eq.EquipmentName</td>
+                                    <td style="padding:12px 16px;">@eq.Remarks</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-bus"></i> Transportation</h4>
+                    <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Vehicle</th>
+                                <th style="padding:12px 16px; text-align:left; color:#64748b;">Remarks</th>
+                            </tr>
+                            @foreach (var tr in eventModel.BODTransportation)
+                            {
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:12px 16px;">@tr.VehicleType</td>
+                                    <td style="padding:12px 16px;">@tr.Remarks</td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background:#f8fafc; border-radius:16px; padding:24px; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:32px;">
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Funding Type</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">@eventModel.FundingType</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Target Participants</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">@eventModel.ExpectedNumberOfParticipants</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">@(eventModel.FundingType == "Ticketed Event" ? "Ticket Price" : "Budget per Person")</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">
+                        ₱@(eventModel.FundingType == "Ticketed Event" ? eventModel.TicketedPrice.ToString("N2") : eventModel.AllocatedBudgetPerPerson.ToString("N2"))
+                    </span>
+                </div>
+            </div>
+
+            <div>
+                <h4 style="font-size:16px; font-weight:700; color:#475569; margin-bottom:16px; display:flex; align-items:center; gap:8px;"><i class="fas fa-coins"></i> Financial Breakdown</h4>
+                <div style="border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;">
+                    <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                        <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                            <th style="padding:12px 16px; text-align:left; color:#64748b;">Item</th>
+                            <th style="padding:12px 16px; text-align:right; color:#64748b;">Estimated Cost</th>
+                        </tr>
+                        @foreach (var ex in eventModel.BODExpenses)
+                        {
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:12px 16px;">@ex.ItemName</td>
+                                <td style="padding:12px 16px; text-align:right;">₱@ex.EstimatedCost.ToString("N2")</td>
+                            </tr>
+                        }
+                        <tr style="background:#f8fafc; font-weight:700;">
+                            <td style="padding:12px 16px; text-align:right;">Total Budget</td>
+                            <td style="padding:12px 16px; text-align:right; color:#062b63;">₱@eventModel.TotalEstimatedBudget.ToString("N2")</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        @if (eventModel.Status == "Ended" || eventModel.Status == "In Progress")
+        {
+            <div style="background:#fff; border-radius:24px; padding:32px; box-shadow:0 4px 24px rgba(0,0,0,0.03); margin-bottom:32px;">
+                <h3 style="font-size:20px; font-weight:700; color:#062b63; margin:0 0 24px 0;">Real-time Attendance Status</h3>
+                <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:20px;">
+                    <div style="background:#f8fafc; padding:24px; border-radius:16px; border:1px solid #e2e8f0; text-align:center;">
+                        <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Target</span>
+                        <div style="font-size:28px; font-weight:800; color:#062b63;">@eventModel.ExpectedParticipants</div>
+                    </div>
+                    <div style="background:#f8fafc; padding:24px; border-radius:16px; border:1px solid #e2e8f0; text-align:center;">
+                        <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Actual Attendance</span>
+                        <div style="font-size:28px; font-weight:800; color:#062b63;">@eventModel.AttendanceCount</div>
+                    </div>
+                    <div style="background:#f8fafc; padding:24px; border-radius:16px; border:1px solid #e2e8f0; text-align:center;">
+                        <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Walk-ins</span>
+                        <div style="font-size:28px; font-weight:800; color:#062b63;">@eventModel.WalkInCount</div>
+                    </div>
+                    <div style="background:#f0fdf4; padding:24px; border-radius:16px; border:1px solid #dcfce7; text-align:center;">
+                        <span style="display:block; font-size:12px; color:#166534; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Attendance Rate</span>
+                        <div style="font-size:28px; font-weight:800; color:#22c55e;">@CalculateRate()%</div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (eventModel.IsReportGenerated)
+        {
+            <div style="background:#fff; border-radius:24px; padding:32px; box-shadow:0 4px 24px rgba(0,0,0,0.03);">
+                <h3 style="font-size:20px; font-weight:700; color:#062b63; margin:0 0 16px 0;">Event Report Notes</h3>
+                <div style="background:#f8fafc; border-radius:16px; padding:24px; color:#475569; line-height:1.6;">
+                    @eventModel.ReportNotes
+                </div>
+            </div>
+        }
+        @if (showAssignModal)
+        {
+            <Leadership_Assign_Leader BODEvent="eventModel" OnClose="() => showAssignModal = false" OnAssigned="HandleAssigned" />
+        }
+    </div>
+
+    <!-- Report Modal -->
+    @if (showReportModal)
+    {
+        <div class="modal-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:1100;">
+            <div class="modal-card" style="background:#fff; border-radius:24px; width:100%; max-width:600px; padding:40px; box-shadow:0 20px 50px rgba(0,0,0,0.2);">
+                <h3 style="font-size:24px; font-weight:800; color:#062b63; margin:0 0 16px 0;">Generate Event Report</h3>
+                <p style="color:#64748b; margin-bottom:32px;">Please provide any additional notes or highlights from the event to include in the final report.</p>
+                
+                <div style="margin-bottom:32px;">
+                    <label style="display:block; font-size:14px; font-weight:700; color:#475569; margin-bottom:12px;">Report Notes</label>
+                    <textarea @bind="reportNotes" style="width:100%; min-height:150px; padding:16px; border:1px solid #e2e8f0; border-radius:12px; outline:none; font-size:15px;" placeholder="Enter event summary, achievements, or feedback..."></textarea>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:16px;">
+                    <button @onclick="() => showReportModal = false" style="padding:12px 32px; background:transparent; border:none; color:#64748b; font-weight:600; cursor:pointer;">Cancel</button>
+                    <button @onclick="() => showReportConfirm = true" style="padding:12px 40px; background:#062b63; color:#fff; border:none; border-radius:12px; font-weight:700; cursor:pointer;">Submit Report</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (showReportConfirm)
+    {
+        <div class="modal-overlay" style="z-index:1200;">
+            <div class="modal-card" style="width:90%; max-width:400px; padding:32px; text-align:center;">
+                <div style="width:64px; height:64px; background:#fef3c7; color:#d97706; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 20px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3 style="margin:0 0 12px 0; font-size:20px; font-weight:700; color:#062b63;">Confirm Report</h3>
+                <p style="margin:0 0 24px 0; font-size:14px; color:#64748b; line-height:1.5;">Are you sure you want to finalize this report? Once generated, it cannot be edited again.</p>
+                <div style="display:flex; gap:12px;">
+                    <button @onclick="() => showReportConfirm = false" style="flex:1; padding:12px; border:1px solid #e2e8f0; background:white; color:#64748b; border-radius:10px; font-weight:600; cursor:pointer;">Cancel</button>
+                    <button @onclick="SubmitReport" style="flex:1; padding:12px; border:none; background:#062b63; color:white; border-radius:10px; font-weight:600; cursor:pointer;">Generate</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = "";
+
+    private BODEventModel? eventModel;
+    private bool showReportModal = false;
+    private bool showReportConfirm = false;
+    private bool showAssignModal = false;
+    private string reportNotes = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (int.TryParse(Id, out var intId))
+        {
+            eventModel = await BODEventService.GetEventByIdAsync(intId);
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/leadership/events");
+
+    private void NavigateToAttendance()
+    {
+        if (eventModel != null)
+        {
+            NavManager.NavigateTo($"/national-attendance/{eventModel.Id}");
+        }
+    }
+
+    private void HandleAssigned()
+    {
+        showAssignModal = false;
+        StateHasChanged();
+    }
+
+    private int CalculateRate()
+    {
+        if (eventModel == null || eventModel.ExpectedParticipants == 0) return 0;
+        return (int)((double)eventModel.AttendanceCount / eventModel.ExpectedParticipants * 100);
+    }
+
+    private async Task SubmitReport()
+    {
+        if (eventModel != null)
+        {
+            eventModel.IsReportGenerated = true;
+            eventModel.ReportNotes = reportNotes;
+            eventModel.Status = "Completed";
+            await BODEventService.UpdateEventAsync(eventModel);
+            showReportModal = false;
+            showReportConfirm = false;
+        }
+    }
+
+    private (string bg, string text, string border) GetStatusColor(string status) => status switch
+    {
+        "In Progress" => ("#fffbeb", "#d97706", "#fef3c7"),
+        "Published" => ("#eff6ff", "#3b82f6", "#bfdbfe"),
+        "Ended" => ("#f8fafc", "#475569", "#cbd5e1"),
+        "Completed" => ("#ecfdf5", "#10b981", "#a7f3d0"),
+        _ => ("#ecfdf5", "#10b981", "#a7f3d0")
+    };
+}

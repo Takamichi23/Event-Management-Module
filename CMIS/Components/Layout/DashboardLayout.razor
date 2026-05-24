@@ -1,0 +1,237 @@
+@inherits LayoutComponentBase
+@using CMIS.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="dashboard">
+    <!-- Sidebar -->
+    <aside class="sidebar @(sidebarOpen ? "open" : "")">
+        <div class="sidebar-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i class="fas fa-church"></i>
+                </div>
+                <div class="logo-text">
+                    <div class="brand-main">JESUS OUR BANNER</div>
+                    <div class="brand-sub">MINISTRY</div>
+                </div>
+            </div>
+
+            <div class="role-selector">
+                <div class="role-box" @onclick="ToggleRoleDropdown">
+                    <i class="fas @(RoleSlug == "head-pastor" ? "fa-user-tie" : "fa-home")"></i>
+                    <span>@RoleDisplayName</span>
+                    <i class="fas fa-chevron-down @(showRoleDropdown ? "rotated" : "")"></i>
+                </div>
+                @if (showRoleDropdown)
+                {
+                    <div class="role-dropdown">
+                        <div class="role-item" @onclick='() => SelectRole("Ministry Head", "/ministry-head")'>Ministry Head</div>
+                        <div class="role-item" @onclick='() => SelectRole("Head Pastor", "/head-pastor")'>Head Pastor</div>
+                        <div class="role-item" @onclick='() => SelectRole("District Head", "/district-head/events")'>District Head</div>
+                        <div class="role-item" @onclick='() => SelectRole("District Leader", "/district-leader/attendance")'>District Leader</div>
+                        <div class="role-item" @onclick='() => SelectRole("National Leader", "/national-leader/attendance")'>National Leader</div>
+                        <div class="role-item" @onclick='() => SelectRole("Board of Directors", "/board-of-directors/events")'>Board of Directors</div>
+                        <div class="role-item" @onclick='() => SelectRole("Leadership Council", "/leadership-council/events")'>Leadership Council</div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="/@RoleSlug" class="sidebar-link @IsActive($"/{RoleSlug}")">
+                <i class="fas fa-th-large"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="/@RoleSlug/membership" class="sidebar-link @IsActive($"/{RoleSlug}/membership")">
+                <i class="fas fa-users"></i>
+                <span>Membership</span>
+            </a>
+            <a href="/@RoleSlug/financial/proposals" class="sidebar-link @IsActive($"/{RoleSlug}/financial")">
+                <i class="fas fa-money-bill-wave"></i>
+                <span>Financial Management</span>
+            </a>
+            <a href="/@RoleSlug/collections" class="sidebar-link @IsActive($"/{RoleSlug}/collections")">
+                <i class="fas fa-hand-holding-usd"></i>
+                <span>Collection and Donation</span>
+            </a>
+            <a href="/@RoleSlug/events" class="sidebar-link @IsActive($"/{RoleSlug}/events")">
+                <i class="fas fa-calendar-alt"></i>
+                <span>Event Management</span>
+            </a>
+            <a href="/@RoleSlug/appointments" class="sidebar-link @IsActive($"/{RoleSlug}/appointments")">
+                <i class="fas fa-clock"></i>
+                <span>Appointments</span>
+            </a>
+            <a href="/@RoleSlug/schedule" class="sidebar-link @IsActive($"/{RoleSlug}/schedule")">
+                <i class="fas fa-cog"></i>
+                <span>Configure Schedule</span>
+            </a>
+            <a href="/@RoleSlug/services" class="sidebar-link @IsActive($"/{RoleSlug}/services")">
+                <i class="fas fa-concierge-bell"></i>
+                <span>Services</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="footer-user">
+                <div class="user-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="user-details">
+                    <div class="u-name">@RoleDisplayName</div>
+                    <div class="u-email">@userEmail</div>
+                </div>
+            </div>
+            <button class="signout-btn" @onclick="HandleSignOut">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Sign out</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- Sidebar overlay for mobile -->
+    <div class="sidebar-overlay @(sidebarOpen ? "visible" : "")" @onclick="() => sidebarOpen = false"></div>
+
+    <!-- Main content -->
+    <div class="dashboard-main">
+        <!-- Top header -->
+        <header class="top-header">
+            <button class="hamburger" @onclick="() => sidebarOpen = !sidebarOpen" aria-label="Toggle sidebar">
+                <i class="fas fa-bars"></i>
+            </button>
+            <h2 class="header-title">@CurrentPageTitle</h2>
+            <div class="header-right">
+                <button class="notif-btn" aria-label="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="notif-badge">1</span>
+                </button>
+                <div class="user-info">
+                    <i class="fas fa-user-circle" style="font-size: 20px;"></i>
+                    <span class="user-name">@RoleDisplayName</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page content -->
+        <main class="page-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+@code {
+    private bool sidebarOpen = false;
+    private bool showRoleDropdown = false;
+    private string roleName = "";
+    private string userEmail = "pastor@church.org";
+
+    private string RoleSlug => GetRoleSlug();
+    private string RoleDisplayName => !string.IsNullOrEmpty(roleName) ? roleName : GetRoleDisplayName(RoleSlug);
+
+    private string CurrentPageTitle
+    {
+        get
+        {
+            var path = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
+            if (path.Contains("/financial") || path.Contains("/finance") || path.Contains("/budget")) return "Financial Management";
+            if (path.Contains("/membership")) return "Membership";
+            if (path.Contains("/collections")) return "Collection and Donation";
+            if (path.Contains("/event")) return "Event Management";
+            if (path.Contains("/appointments")) return "Appointments";
+            if (path.Contains("/schedule")) return "Configure Schedule";
+            if (path.Contains("/services")) return "Services";
+            return "Dashboard";
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Navigation.LocationChanged += (s, e) => StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= (s, e) => StateHasChanged();
+    }
+
+    private void ToggleRoleDropdown() => showRoleDropdown = !showRoleDropdown;
+
+    private void SelectRole(string role, string defaultPath)
+    {
+        roleName = role;
+        showRoleDropdown = false;
+        Navigation.NavigateTo(defaultPath);
+    }
+
+    private string GetRoleSlug()
+    {
+        var path = Navigation.ToBaseRelativePath(Navigation.Uri).ToLower();
+        if (path.StartsWith("head-pastor")) return "head-pastor";
+        if (path.StartsWith("district-head")) return "district-head";
+        if (path.StartsWith("leadership-council")) return "leadership-council";
+        if (path.StartsWith("board-of-directors")) return "board-of-directors";
+        if (path.StartsWith("bod")) return "board-of-directors";
+        return "ministry-head";
+    }
+
+    private string GetRoleDisplayName(string slug)
+    {
+        return slug switch
+        {
+            "head-pastor" => "Head Pastor",
+            "district-head" => "District Head",
+            "leadership-council" => "Leadership Council",
+            "board-of-directors" => "Board of Directors",
+            "bod" => "Board of Directors",
+            _ => "Ministry Head"
+        };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+                var user = authState.User;
+                if (user.Identity?.IsAuthenticated == true)
+                {
+                    var newRole = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+                    if (!string.IsNullOrEmpty(newRole))
+                    {
+                        roleName = newRole;
+                    }
+                    userEmail = user.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "";
+                    StateHasChanged();
+                }
+            }
+            catch { /* Session not available during prerender */ }
+        }
+    }
+
+    private string IsActive(string href)
+    {
+        var uri = Navigation.Uri;
+        var relativePath = Navigation.ToBaseRelativePath(uri);
+        var path = "/" + relativePath;
+
+        if (href == $"/{RoleSlug}" && path == $"/{RoleSlug}")
+            return "active";
+
+        if (href != $"/{RoleSlug}" && path.StartsWith(href, StringComparison.OrdinalIgnoreCase))
+            return "active";
+
+        return "";
+    }
+
+    private async Task HandleSignOut()
+    {
+        var authProvider = (CustomAuthStateProvider)AuthStateProvider;
+        await authProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/login");
+    }
+}

@@ -1,0 +1,234 @@
+@page "/login"
+@layout CMIS.Components.Layout.LoginLayout
+@using CMIS.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject AuthService AuthService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Sign In — Jesus Our Banner Ministry</PageTitle>
+<HeadContent>
+    <meta name="description" content="Sign in to the Jesus Our Banner Ministry Church Management Information System." />
+</HeadContent>
+
+<!-- ===== TOP NAVBAR ===== -->
+<nav class="site-navbar">
+    <div class="navbar-inner">
+        <!-- Brand -->
+        <a href="/" class="navbar-brand" id="navbar-brand">
+            <img src="images/worship-hero.png" alt="" class="brand-icon" aria-hidden="true" />
+            <div class="brand-text">
+                <span class="brand-title">JESUS OUR BANNER</span>
+                <span class="brand-subtitle">MINISTRY</span>
+            </div>
+        </a>
+
+        <!-- Hamburger for mobile -->
+        <button class="navbar-toggler" id="navbar-toggler" @onclick="ToggleMenu" aria-label="Toggle navigation">
+            <span class="toggler-bar"></span>
+            <span class="toggler-bar"></span>
+            <span class="toggler-bar"></span>
+        </button>
+
+        <!-- Links -->
+        <div class="navbar-links @(menuOpen ? "open" : "")">
+            <a href="/" class="nav-link" id="nav-home">HOME</a>
+            <a href="/activities" class="nav-link" id="nav-activities">ACTIVITIES</a>
+            <a href="/services" class="nav-link" id="nav-services">SERVICES</a>
+            <div class="nav-dropdown" id="nav-ministries-dropdown">
+                <button class="nav-link dropdown-toggle" @onclick="() => ToggleDropdown(1)">
+                    MINISTRIES
+                    <svg class="chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                @if (activeDropdown == 1)
+                {
+                    <div class="dropdown-menu">
+                        <a href="/ministries/worship" class="dropdown-item">Worship</a>
+                        <a href="/ministries/youth" class="dropdown-item">Youth</a>
+                        <a href="/ministries/children" class="dropdown-item">Children</a>
+                        <a href="/ministries/prayer" class="dropdown-item">Prayer</a>
+                    </div>
+                }
+            </div>
+            <div class="nav-dropdown" id="nav-about-dropdown">
+                <button class="nav-link dropdown-toggle" @onclick="() => ToggleDropdown(2)">
+                    ABOUT
+                    <svg class="chevron" width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                @if (activeDropdown == 2)
+                {
+                    <div class="dropdown-menu">
+                        <a href="/about/our-story" class="dropdown-item">Our Story</a>
+                        <a href="/about/leadership" class="dropdown-item">Leadership</a>
+                        <a href="/about/beliefs" class="dropdown-item">Beliefs</a>
+                    </div>
+                }
+            </div>
+            <a href="/give" class="nav-link" id="nav-give">GIVE</a>
+        </div>
+
+        <!-- CTA -->
+        <a href="/join" class="btn-join" id="btn-join-us">
+            JOIN US
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7H13M13 7L8 2M13 7L8 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+    </div>
+</nav>
+
+<!-- ===== MAIN SPLIT CONTENT ===== -->
+<section class="login-split">
+    <!-- Left: Hero Image -->
+    <div class="login-hero">
+        <img src="images/worship-hero.png" alt="Church worship service" class="hero-img" />
+        <div class="hero-overlay"></div>
+    </div>
+
+    <!-- Right: Form -->
+    <div class="login-form-panel">
+        <div class="form-container">
+            <h1 class="form-heading">Welcome back!</h1>
+            <p class="form-subheading">Please enter your details.</p>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="login-error" id="login-error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    @errorMessage
+                </div>
+            }
+
+            <EditForm Model="loginModel" OnSubmit="HandleLogin">
+                <div class="field-group">
+                    <label for="login-email" class="field-label">Email</label>
+                    <InputText id="login-email" class="field-input" @bind-Value="loginModel.Email" placeholder="you@example.com" />
+                </div>
+
+                <div class="field-group">
+                    <label for="login-password" class="field-label">Password</label>
+                    <div class="password-wrapper">
+                        <InputText id="login-password" type="@(showPassword ? "text" : "password")" class="field-input" @bind-Value="loginModel.Password" placeholder="••••••••" />
+                        <button type="button" class="password-toggle" @onclick="() => showPassword = !showPassword" aria-label="Toggle password visibility">
+                            @if (showPassword)
+                            {
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                            }
+                            else
+                            {
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                            }
+                        </button>
+                    </div>
+                </div>
+
+                <div class="options-row">
+                    <label class="checkbox-label" for="keep-logged-in">
+                        <InputCheckbox id="keep-logged-in" @bind-Value="loginModel.KeepLoggedIn" />
+                        <span>Keep me logged in</span>
+                    </label>
+                    <a href="/forgot-password" class="forgot-link" id="forgot-password-link">Forgot Password?</a>
+                </div>
+
+                <button type="submit" class="btn-signin" id="btn-signin" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>SIGNING IN...</span>
+                    }
+                    else
+                    {
+                        <span>SIGN IN</span>
+                        <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M1 7H13M13 7L8 2M13 7L8 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    }
+                </button>
+            </EditForm>
+
+            <div class="divider">
+                <span class="divider-line"></span>
+                <span class="divider-text">OR</span>
+                <span class="divider-line"></span>
+            </div>
+
+            <button class="btn-google" id="btn-google-signin" @onclick="HandleGoogleSignIn">
+                <svg class="google-icon" width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59a14.5 14.5 0 0 1 0-9.18l-7.98-6.19a24.01 24.01 0 0 0 0 21.56l7.98-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                SIGN IN WITH GOOGLE
+            </button>
+
+            <p class="register-text">
+                Don't have an account?
+                <a href="/register" class="register-link" id="register-link">Register now.</a>
+            </p>
+        </div>
+    </div>
+</section>
+
+@code {
+    private LoginModel loginModel { get; set; } = new();
+
+    private bool showPassword = false;
+    private bool menuOpen = false;
+    private int? activeDropdown = null;
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private void ToggleMenu() => menuOpen = !menuOpen;
+
+    private void ToggleDropdown(int id)
+    {
+        activeDropdown = activeDropdown == id ? null : id;
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        isLoading = true;
+
+        try
+        {
+            var account = await AuthService.LoginAsync(loginModel.Email, loginModel.Password);
+
+            if (account is null)
+            {
+                errorMessage = "Invalid email/username or password.";
+                isLoading = false;
+                return;
+            }
+
+            // Mark user as authenticated
+            var authProvider = (CustomAuthStateProvider)AuthStateProvider;
+            await authProvider.MarkUserAsAuthenticated(account);
+
+            // Redirect based on role
+            var destination = account.Role.RoleName switch
+            {
+                "Head Pastor" => "/head-pastor",
+                "District Head" => "/district-head",
+                "Ministry Head" => "/ministry-head",
+                "Board of Directors" => "/board-of-directors",
+                "Leadership Council" => "/leadership-council",
+                _ => "/"
+            };
+
+            Navigation.NavigateTo(destination);
+        }
+        catch (Exception)
+        {
+            errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void HandleGoogleSignIn()
+    {
+        // TODO: Implement Google OAuth
+    }
+
+    public class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public bool KeepLoggedIn { get; set; } = false;
+    }
+}

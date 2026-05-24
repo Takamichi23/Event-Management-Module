@@ -1,0 +1,484 @@
+@page "/event-form"
+@page "/event-form/{Id}"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.EventService EventService
+@inject NavigationManager NavManager
+
+<div class="view" id="v-form">
+    <div class="back-row">
+      <button class="back-btn" @onclick="GoBack" style="background:transparent; border:none; font-size:20px; cursor:pointer;"><i class="fas fa-arrow-left"></i></button>
+      <h1 class="pg-title" style="margin-bottom:0; font-size:28px; font-weight:600; color:#062b63;">Local Events</h1>
+    </div>
+ 
+    <div class="form-wrap">
+      <div class="stepper">
+        <div class="si @(currentStep >= 1 ? "done" : "")" id="si1">
+          <div class="scirc"><i class="fas fa-check"></i></div>
+          <div class="slbl">Basic Event Information</div>
+        </div>
+        <div class="si @(currentStep >= 2 ? "done" : "")" id="si2">
+          <div class="scirc"><i class="fas fa-check"></i></div>
+          <div class="slbl">Event Program Details</div>
+        </div>
+        <div class="si @(currentStep >= 3 ? "done" : "")" id="si3">
+          <div class="scirc"><i class="fas fa-check"></i></div>
+          <div class="slbl">Financial Details</div>
+        </div>
+      </div>
+ 
+      <div class="fcard">
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div style="background:#fef2f2; border:1px solid #fee2e2; color:#b91c1c; padding:16px; border-radius:12px; margin-bottom:24px; font-size:14px; font-weight:500; display:flex; align-items:center; gap:10px;">
+                <i class="fas fa-exclamation-circle"></i> @errorMessage
+            </div>
+        }
+
+        @if (currentStep == 1)
+        {
+            <h2 class="ftitle">Basic Events Information</h2>
+     
+            <div class="frow">
+              <div class="flbl">Event Title <span style="color:#ef4444;">*</span></div>
+              <div class="ffld"><input class="fin" type="text" @bind="eventModel.Title" placeholder="Enter the official title of the event" required /></div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Category <span style="color:#ef4444;">*</span></div>
+              <div class="ffld">
+                <select class="fsel" @bind="eventModel.Category" required>
+                  <option value="">Select Category</option>
+                  <option>Youth</option><option>Outreach</option>
+                  <option>Worship</option><option>Training</option><option>Fellowship</option>
+                </select>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Image</div>
+              <div class="ffld">
+                <div class="upbox" onclick="document.getElementById('imgUp').click()">
+                  <i class="fas fa-upload"></i>
+                  <span class="ul">Click to upload event image</span>
+                  <span class="us">PNG, JPG up to 10MB</span>
+                </div>
+                <input type="file" id="imgUp" style="display:none" accept="image/*"/>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Date <span style="color:#ef4444;">*</span></div>
+              <div class="ffld">
+                <input class="fin" type="date" @bind="eventModel.Date" placeholder="mm/dd/yyyy" required />
+              </div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Time <span style="color:#ef4444;">*</span></div>
+              <div class="ffld">
+                <div class="tblock">
+                  <div class="trow">
+                    <span class="tlbl">Start Time:</span>
+                    <input class="fin" type="time" @bind="eventModel.StartTime" @bind:after="CalculateDuration" placeholder="00:00" required />
+                  </div>
+                  <div class="trow">
+                    <span class="tlbl">End Time:</span>
+                    <input class="fin" type="time" @bind="eventModel.EndTime" @bind:after="CalculateDuration" placeholder="00:00" required />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Duration</div>
+              <div class="ffld"><input class="fin" type="text" @bind="eventModel.Duration" placeholder="Auto-calculated" readonly style="background:#f8fafc; color:#64748b; font-weight:600;" /></div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Event Venue</div>
+              <div class="ffld"><input class="fin" type="text" @bind="eventModel.Venue" placeholder="Enter venue or location name"/></div>
+            </div>
+            <div class="frow">
+              <div class="flbl">Description</div>
+              <div class="ffld"><textarea class="ftxt" @bind="eventModel.Description" placeholder="Provide a brief summary or objectives of the event..."></textarea></div>
+            </div>
+
+            <!-- <div class="frow">
+              <div class="flbl">Target Audience</div>
+              <div class="ffld">
+                <select class="fsel" @bind="eventModel.TargetAudience">
+                  <option>National</option><option>Local</option><option>Regional</option><option>International</option>
+                </select>
+              </div>
+            </div> -->
+            <div class="frow" style="border-bottom:none;">
+              <div class="flbl">Organizing Ministry/ Department <span style="color:#ef4444;">*</span></div>
+              <div class="ffld">
+                <select class="fsel" @bind="eventModel.OrganizingMinistry" required>
+                  <option value="">Select Ministry</option>
+                  <option>Youth Ministry</option><option>Outreach Ministry</option>
+                  <option>Worship Team</option><option>Finance Department</option>
+                </select>
+              </div>
+            </div>
+     
+            <div class="fact" style="display:flex; justify-content:flex-end;">
+              <button class="nxtbtn" @onclick="NextStep" style="padding:10px 60px; border:none; border-radius:8px; background:#062b63; color:#fff; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px;">
+                  Next <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+        }
+        else if (currentStep == 2)
+        {
+            <h2 class="ftitle">Event Program Details</h2>
+            
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Program Flow/<br/>Schedules</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Start Time</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">End Time</div>
+                   <div style="flex:2; font-weight:600; color:#5c6e88; font-size:14px;">Program Title</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventProgramSchedules)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="time" @bind="item.StartTime" placeholder="00:00" style="flex:1;" />
+                      <input class="fin" type="time" @bind="item.EndTime" placeholder="00:00" style="flex:1;" />
+                      <input class="fin" type="text" @bind="item.ProgramTitle" style="flex:2;" placeholder="Enter session or activity name" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventProgramSchedules.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventProgramSchedules.Add(new() { StartTime = new TimeOnly(0, 0), EndTime = new TimeOnly(0, 0) })"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Guests Speakers/<br/>Performers</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Type</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Name</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Contact no.</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventGuests)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="text" @bind="item.GuestType" style="flex:1;" placeholder="e.g., Keynote" />
+                      <input class="fin" type="text" @bind="item.FullName" style="flex:1;" placeholder="Full name of the guest" />
+                      <input class="fin" type="text" @bind="item.ContactNumber" style="flex:1;" placeholder="Contact Number" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventGuests.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventGuests.Add(new())"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Assigned<br/>Personnel / Roles</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Roles</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Name</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Contact no.</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventPersonnel)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="text" @bind="item.RoleName" style="flex:1;" placeholder="e.g., Coordinator" />
+                      <input class="fin" type="text" @bind="item.FullName" style="flex:1;" placeholder="Staff Name" />
+                      <input class="fin" type="text" @bind="item.ContactNumber" style="flex:1;" placeholder="Contact Number" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventPersonnel.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventPersonnel.Add(new())"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Equipment /<br/>Resources Needed</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:2; font-weight:600; color:#5c6e88; font-size:14px;">Equipment</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Remarks</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventEquipments)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="text" @bind="item.EquipmentName" style="flex:2;" placeholder="Specify required resource" />
+                      <input class="fin" type="text" @bind="item.Remarks" style="flex:1;" placeholder="Remarks" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventEquipments.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventEquipments.Add(new())"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="frow" style="border-bottom:none;">
+              <div class="flbl" style="line-height:1.4;">Transportation<br/>Requirements</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:2; font-weight:600; color:#5c6e88; font-size:14px;">Vehicle</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Remarks</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventTransportations)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="text" @bind="item.VehicleType" style="flex:2;" placeholder="e.g., Van, Bus" />
+                      <input class="fin" type="text" @bind="item.Remarks" style="flex:1;" placeholder="Remarks" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventTransportations.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventTransportations.Add(new())"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="fact" style="display:flex; justify-content:flex-end; gap:16px;">
+              <button class="backbtn" @onclick="PrevStep" style="padding:10px 40px; border:1px solid #062b63; border-radius:8px; background:#fff; color:#062b63; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px;">
+                  <i class="fas fa-chevron-left"></i> Back
+              </button>
+              <button class="nxtbtn" @onclick="NextStep" style="padding:10px 40px; border:none; border-radius:8px; background:#062b63; color:#fff; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px;">
+                  Next <i class="fas fa-chevron-right"></i>
+              </button>
+            </div>
+        }
+        else if (currentStep == 3)
+        {
+            <h2 class="ftitle">Financial Details</h2>
+            
+            <div class="frow">
+              <div class="flbl">Funding Type</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:12px;">
+                <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:#0f172a; font-size:14px; cursor:pointer;">
+                    <input type="radio" name="funding" value="Church Sponsored" @onchange="@(e => eventModel.FundingType = e.Value?.ToString() ?? "Church Sponsored")" checked="@(eventModel.FundingType == "Church Sponsored")" style="width:16px; height:16px;" />
+                    Church Sponsored (Fully Funded)
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:#0f172a; font-size:14px; cursor:pointer;">
+                    <input type="radio" name="funding" value="Ticketed Event" @onchange="@(e => eventModel.FundingType = e.Value?.ToString() ?? "Ticketed Event")" checked="@(eventModel.FundingType == "Ticketed Event")" style="width:16px; height:16px;" />
+                    Ticketed Event (Per Participant Fee)
+                </label>
+                <label style="display:flex; align-items:center; gap:8px; font-weight:600; color:#0f172a; font-size:14px; cursor:pointer;">
+                    <input type="radio" name="funding" value="Fund Raising" @onchange="@(e => eventModel.FundingType = e.Value?.ToString() ?? "Fund Raising")" checked="@(eventModel.FundingType == "Fund Raising")" style="width:16px; height:16px;" />
+                    Fund Raising Event (Donation/Pledge)
+                </label>
+              </div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Expected Number of<br/>Participants</div>
+              <div class="ffld"><input class="fin" type="number" @bind="eventModel.ExpectedNumberOfParticipants" placeholder="0"/></div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl">Ticketed Price</div>
+              <div class="ffld"><input class="fin" type="number" step="0.01" @bind="eventModel.TicketedPrice" placeholder="0.00" disabled="@(eventModel.FundingType == "Church Sponsored")" /></div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Allocated Budget per<br/>person</div>
+              <div class="ffld"><input class="fin" type="number" step="0.01" @bind="eventModel.AllocatedBudgetPerPerson" placeholder="50.00"/></div>
+            </div>
+
+            <div class="frow">
+              <div class="flbl" style="line-height:1.4;">Breakdown of<br/>Expenses</div>
+              <div class="ffld" style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; gap:8px;">
+                   <div style="flex:2; font-weight:600; color:#5c6e88; font-size:14px;">Items</div>
+                   <div style="flex:1; font-weight:600; color:#5c6e88; font-size:14px;">Est Cost</div>
+                   <div style="width:20px;"></div>
+                </div>
+                @foreach(var item in eventModel.EventExpenses)
+                {
+                   <div style="display:flex; gap:8px; align-items:center;">
+                      <input class="fin" type="text" @bind="item.ItemName" style="flex:2;" placeholder="Specify item or service" />
+                      <input class="fin" type="number" step="0.01" @bind="item.EstimatedCost" style="flex:1;" placeholder="0.00" />
+                      <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer; font-size:16px;" @onclick="() => eventModel.EventExpenses.Remove(item)"></i>
+                   </div>
+                }
+                <div style="display:flex; justify-content:flex-end;">
+                  <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:20px;" @onclick="() => eventModel.EventExpenses.Add(new())"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="frow" style="border-bottom:none;">
+              <div class="flbl" style="line-height:1.4;">Total Estimated<br/>Budget</div>
+              <div class="ffld"><input class="fin" type="text" value="@eventModel.TotalEstimatedBudget.ToString("N2")" readonly style="background:#f8fafc; color:#94a3b8; font-weight:600;" /></div>
+            </div>
+
+            <div class="fact" style="display:flex; justify-content:flex-end; gap:16px;">
+              <button class="backbtn" @onclick="PrevStep" style="padding:10px 40px; border:1px solid #062b63; border-radius:8px; background:#fff; color:#062b63; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px;">
+                  <i class="fas fa-chevron-left"></i> Back
+              </button>
+              <button class="nxtbtn" @onclick="SubmitForm" style="padding:10px 40px; border:none; border-radius:8px; background:#062b63; color:#fff; cursor:pointer; font-weight:500; display:flex; align-items:center; gap:8px;">
+                  <i class="fas fa-save"></i> @(string.IsNullOrEmpty(Id) ? "Submit" : "Save")
+              </button>
+            </div>
+        }
+      </div>
+    </div>
+ 
+    @if (showSuccessModal)
+    {
+        <div class="modal-overlay">
+            <div class="modal-card">
+                <div class="modal-header">
+                    <h3 class="modal-title">@(string.IsNullOrEmpty(Id) ? "Confirm Submission" : "Confirm Save")</h3>
+                    <button class="modal-close" @onclick="CloseModal"><i class="fas fa-times"></i></button>
+                </div>
+                
+                <div class="success-icon-wrap">
+                    <i class="fas fa-check"></i>
+                </div>
+                
+                <div class="success-msg">@(string.IsNullOrEmpty(Id) ? "Successfully Submitted" : "Successfully Saved")</div>
+                
+                <button class="modal-btn" @onclick="CloseModal">View Events</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private int currentStep = 1;
+    private EventModel eventModel = new();
+    private bool showSuccessModal = false;
+    private string errorMessage = "";
+
+    [Parameter]
+    public string? Id { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(Id) && int.TryParse(Id, out var eventId))
+        {
+            var existingEvent = await EventService.GetEventByIdAsync(eventId);
+            if (existingEvent != null)
+            {
+                eventModel = existingEvent;
+            }
+        }
+        else
+        {
+            eventModel.Date = DateTime.Today;
+            eventModel.StartTime = new TimeOnly(0, 0);
+            eventModel.EndTime = new TimeOnly(0, 0);
+
+            // Add one initial row for each list
+            eventModel.EventProgramSchedules.Add(new() { StartTime = new TimeOnly(0, 0), EndTime = new TimeOnly(0, 0) });
+            eventModel.EventGuests.Add(new());
+            eventModel.EventPersonnel.Add(new());
+            eventModel.EventEquipments.Add(new());
+            eventModel.EventTransportations.Add(new());
+            eventModel.EventExpenses.Add(new());
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/ministry-head/events");
+    
+    private void NextStep() 
+    { 
+        errorMessage = "";
+        if (currentStep == 1)
+        {
+            if (string.IsNullOrWhiteSpace(eventModel.Title) || 
+                string.IsNullOrWhiteSpace(eventModel.Category) || 
+                string.IsNullOrWhiteSpace(eventModel.OrganizingMinistry))
+            {
+                errorMessage = "Please fill in all required fields marked with *.";
+                return;
+            }
+        }
+        else if (currentStep == 2)
+        {
+            if (!eventModel.EventProgramSchedules.Any(p => !string.IsNullOrWhiteSpace(p.ProgramTitle)))
+            {
+                errorMessage = "Please add at least one program schedule title.";
+                return;
+            }
+        }
+
+        if (currentStep < 3) currentStep++; 
+    }
+
+    private void PrevStep() 
+    { 
+        errorMessage = "";
+        if (currentStep > 1) currentStep--; 
+    }
+
+    private async Task SubmitForm()
+    {
+        errorMessage = "";
+        if (string.IsNullOrWhiteSpace(eventModel.FundingType))
+        {
+            errorMessage = "Please select a funding type.";
+            return;
+        }
+
+        if (eventModel.ExpectedNumberOfParticipants <= 0)
+        {
+            errorMessage = "Please enter the expected number of participants for financial calculation.";
+            return;
+        }
+
+        // Clean up empty rows before submitting to prevent API validation errors
+        eventModel.EventProgramSchedules = eventModel.EventProgramSchedules.Where(x => !string.IsNullOrWhiteSpace(x.ProgramTitle)).ToList();
+        eventModel.EventGuests = eventModel.EventGuests.Where(x => !string.IsNullOrWhiteSpace(x.FullName)).ToList();
+        eventModel.EventPersonnel = eventModel.EventPersonnel.Where(x => !string.IsNullOrWhiteSpace(x.FullName)).ToList();
+        eventModel.EventEquipments = eventModel.EventEquipments.Where(x => !string.IsNullOrWhiteSpace(x.EquipmentName)).ToList();
+        eventModel.EventTransportations = eventModel.EventTransportations.Where(x => !string.IsNullOrWhiteSpace(x.VehicleType)).ToList();
+        eventModel.EventExpenses = eventModel.EventExpenses.Where(x => !string.IsNullOrWhiteSpace(x.ItemName) || x.EstimatedCost > 0).ToList();
+
+        try 
+        {
+            if (!string.IsNullOrEmpty(Id))
+            {
+                await EventService.UpdateEventAsync(eventModel);
+            }
+            else
+            {
+                await EventService.AddEventAsync(eventModel);
+            }
+            showSuccessModal = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Failed to create event. Please ensure all details are correct. Error: " + ex.Message;
+        }
+    }
+
+    private void CloseModal()
+    {
+        showSuccessModal = false;
+        NavManager.NavigateTo("/ministry-head/events");
+    }
+
+    private void CalculateDuration()
+    {
+        var duration = eventModel.EndTime - eventModel.StartTime;
+        if (duration.TotalMinutes < 0) duration = duration.Add(TimeSpan.FromDays(1));
+        
+        int hours = (int)duration.TotalHours;
+        int minutes = duration.Minutes;
+        
+        string result = "";
+        if (hours > 0) result += $"{hours} Hour{(hours > 1 ? "s" : "")}";
+        if (minutes > 0) result += $"{(result.Length > 0 ? " " : "")}{minutes} Minute{(minutes > 1 ? "s" : "")}";
+        if (string.IsNullOrEmpty(result)) result = "0 Minutes";
+        
+        eventModel.Duration = result;
+        StateHasChanged();
+    }
+}

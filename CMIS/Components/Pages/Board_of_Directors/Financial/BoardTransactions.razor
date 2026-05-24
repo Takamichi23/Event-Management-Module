@@ -1,0 +1,275 @@
+@page "/board-of-directors/financial/transactions"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using CMIS.Models
+@using CMIS.Services
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@inject CustomAuthStateProvider AuthStateProvider
+@rendermode InteractiveServer
+
+<PageTitle>Transactions — Board of Directors</PageTitle>
+
+<div class="page-heading">
+    <h1 class="page-title">Financial Management</h1>
+    <p class="page-subtitle">Manage budgets, track expenses, and monitor financial health.</p>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <a href="/board-of-directors/financial/proposals" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Budget Proposals</a>
+    <a href="/board-of-directors/financial/transactions" class="tab active"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Transactions</a>
+    <a href="/board-of-directors/financial/allocation" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Budget Allocation</a>
+    <a href="/board-of-directors/financial/monitoring" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Monitoring</a>
+    <a href="/board-of-directors/financial/reports" class="tab"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Reports</a>
+</div>
+
+<!-- Toolbar -->
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;gap:0.5rem;padding:0.55rem 0.85rem;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;flex:1;min-width:200px;max-width:400px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8e99a4" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" placeholder="Search transactions..." @bind="searchQuery" @bind:event="oninput" style="border:none;outline:none;background:none;font-family:'Inter',sans-serif;font-size:0.84rem;color:#1a1a2e;width:100%;" />
+    </div>
+    <select @bind="typeFilter" style="padding:0.55rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.84rem;color:#2c3e50;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;min-width:120px;">
+        <option value="">All Types</option>
+        <option value="Income">Income</option>
+        <option value="Expense">Expense</option>
+    </select>
+    <select @bind="budgetFilter" style="padding:0.55rem 0.85rem;font-family:'Inter',sans-serif;font-size:0.84rem;color:#2c3e50;background:#fff;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;min-width:150px;">
+        <option value="0">All Allocations</option>
+        @foreach (var alloc in allTransactions.Where(t => t.Allocation != null).Select(t => t.Allocation!).DistinctBy(a => a.AllocationId).OrderBy(a => a.Name))
+        {
+            <option value="@alloc.AllocationId">@alloc.Name</option>
+        }
+    </select>
+    <button @onclick="OpenModal" style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.6rem 1.2rem;font-family:'Inter',sans-serif;font-size:0.82rem;font-weight:700;color:#fff;background:#0d2137;border-radius:8px;border:none;cursor:pointer;white-space:nowrap;margin-left:auto;">
+        + Record Transaction
+    </button>
+</div>
+
+<!-- Data Table -->
+<div style="background:#fff;border-radius:12px;border:1px solid #e8ecf1;overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-family:'Inter',sans-serif;font-size:0.84rem;table-layout:fixed;">
+        <colgroup><col style="width:14%"/><col style="width:28%"/><col style="width:22%"/><col style="width:18%"/><col style="width:18%"/></colgroup>
+        <thead style="background:#f8fafc;">
+            <tr>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.75rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Date / ID</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.75rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Description</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.75rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Account / Budget</th>
+                <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;font-size:0.75rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Recorded By</th>
+                <th style="padding:0.75rem 1rem;text-align:right;font-weight:600;font-size:0.75rem;color:#6b7c93;text-transform:uppercase;border-bottom:1px solid #e8ecf1;">Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var t in filteredTransactions)
+            {
+                var recorder = $"{t.RecordedBy?.FirstName} {t.RecordedBy?.LastName}".Trim();
+                <tr style="border-bottom:1px solid #f0f3f6;">
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="font-weight:600;color:#0d2137;display:block;">@t.TransactionDate.ToString("M/d/yyyy")</span>
+                        <span style="font-size:0.72rem;color:#8e99a4;display:block;">@t.TransactionCode</span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="font-weight:600;color:#0d2137;display:block;margin-bottom:0.25rem;">@t.Description</span>
+                        <span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.55rem;border-radius:4px;font-size:0.65rem;font-weight:700;letter-spacing:0.04em;@(t.Type == "Income" ? "background:#eafaf1;color:#1e8449;" : "background:#fdedec;color:#c0392b;")">
+                            @t.Type.ToUpper()
+                        </span>
+                    </td>
+                    <td style="padding:0.85rem 1rem;">
+                        <span style="font-weight:600;color:#1a5276;display:block;">@t.Allocation?.Name</span>
+                        @if (!string.IsNullOrEmpty(t.BudgetLabel))
+                        {
+                            <span style="font-size:0.72rem;color:#8e99a4;display:block;">@t.BudgetLabel</span>
+                        }
+                    </td>
+                    <td style="padding:0.85rem 1rem;color:#2c3e50;">@recorder</td>
+                    <td style="padding:0.85rem 1rem;text-align:right;font-weight:700;font-size:0.9rem;color:@(t.Type == "Income" ? "#1e8449" : "#c0392b");">
+                        @(t.Type == "Income" ? "+" : "-")$@t.Amount.ToString("N0")
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Record Transaction Modal -->
+@if (showModal)
+{
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:1000;" @onclick="CloseModal">
+        <div style="background:#fff;border-radius:14px;padding:2rem;width:100%;max-width:480px;box-shadow:0 8px 32px rgba(0,0,0,0.18);" @onclick:stopPropagation="true">
+            <h2 style="font-family:'Inter',sans-serif;font-size:1.1rem;font-weight:700;color:#0d2137;margin:0 0 1.25rem;">Record Transaction</h2>
+
+            <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;">
+                <button style="@IncomeToggleStyle" @onclick='() => newType = "Income"'>Income</button>
+                <button style="@ExpenseToggleStyle" @onclick='() => newType = "Expense"'>Expense</button>
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;margin-bottom:0.35rem;">Amount ($)</label>
+                <input type="number" step="0.01" min="0" placeholder="0.00" @bind="newAmount"
+                       style="width:100%;padding:0.6rem 0.75rem;font-family:'Inter',sans-serif;font-size:0.84rem;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;box-sizing:border-box;" />
+            </div>
+
+            <div style="margin-bottom:1rem;">
+                <label style="display:block;font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;margin-bottom:0.35rem;">Description</label>
+                <input type="text" placeholder="What was this for?" @bind="newDescription"
+                       style="width:100%;padding:0.6rem 0.75rem;font-family:'Inter',sans-serif;font-size:0.84rem;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;box-sizing:border-box;" />
+            </div>
+
+            <div style="margin-bottom:1.25rem;">
+                <label style="display:block;font-family:'Inter',sans-serif;font-size:0.78rem;font-weight:600;color:#6b7c93;margin-bottom:0.35rem;">Budget Allocation</label>
+                <select @bind="newBudgetAllocationId"
+                        style="width:100%;padding:0.6rem 0.75rem;font-family:'Inter',sans-serif;font-size:0.84rem;border:1.5px solid #d1d9e6;border-radius:8px;outline:none;box-sizing:border-box;background:#fff;">
+                    <option value="0">-- No Allocation --</option>
+                    @foreach (var b in budgetAllocations)
+                    {
+                        <option value="@b.AllocationId">@b.Name</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrEmpty(modalError))
+            {
+                <p style="font-family:'Inter',sans-serif;font-size:0.8rem;color:#c0392b;margin:0 0 0.75rem;">@modalError</p>
+            }
+
+            <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                <button @onclick="CloseModal"
+                        style="padding:0.6rem 1.2rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;color:#6b7c93;background:#f0f3f6;border:none;border-radius:8px;cursor:pointer;">Cancel</button>
+                <button @onclick="SaveTransaction" disabled="@isSaving"
+                        style="padding:0.6rem 1.2rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:700;color:#fff;background:#0d2137;border:none;border-radius:8px;cursor:pointer;">
+                    @(isSaving ? "Saving..." : "Save Transaction")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<Transaction> allTransactions = new();
+    private List<BudgetAllocation> budgetAllocations = new();
+    private string searchQuery = "";
+    private string typeFilter = "";
+    private int budgetFilter = 0;
+
+    private bool showModal = false;
+    private bool isSaving = false;
+    private string newType = "Income";
+    private decimal newAmount = 0;
+    private string newDescription = "";
+    private int newBudgetAllocationId = 0;
+    private string modalError = "";
+    private int currentProfileId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        budgetAllocations = await Db.BudgetAllocations.OrderBy(b => b.Name).ToListAsync();
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var accountIdClaim = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (accountIdClaim != null && int.TryParse(accountIdClaim.Value, out int accountId))
+        {
+            var account = await Db.Accounts.FirstOrDefaultAsync(a => a.AccountId == accountId);
+            currentProfileId = account?.ProfileId ?? 0;
+        }
+
+        allTransactions = await Db.Transactions
+            .Include(t => t.RecordedBy)
+            .Include(t => t.Allocation)
+            .OrderByDescending(t => t.TransactionDate)
+            .ThenByDescending(t => t.TransactionCode)
+            .ToListAsync();
+    }
+
+    private void OpenModal()
+    {
+        newType = "Income";
+        newAmount = 0;
+        newDescription = "";
+        newBudgetAllocationId = 0;
+        modalError = "";
+        showModal = true;
+    }
+
+    private void CloseModal()
+    {
+        showModal = false;
+        modalError = "";
+    }
+
+    private async Task SaveTransaction()
+    {
+        modalError = "";
+        if (newAmount <= 0) { modalError = "Amount must be greater than zero."; return; }
+        if (string.IsNullOrWhiteSpace(newDescription)) { modalError = "Description is required."; return; }
+        if (currentProfileId == 0) { modalError = "Unable to identify current user."; return; }
+
+        isSaving = true;
+
+        var lastCode = await Db.Transactions
+            .OrderByDescending(t => t.TransactionId)
+            .Select(t => t.TransactionCode)
+            .FirstOrDefaultAsync();
+
+        int nextNum = 1001;
+        if (lastCode != null && lastCode.StartsWith("TX-") && int.TryParse(lastCode[3..], out int parsed))
+            nextNum = parsed + 1;
+
+        var selectedAlloc = budgetAllocations.FirstOrDefault(b => b.AllocationId == newBudgetAllocationId);
+        if (newType == "Expense" && selectedAlloc != null)
+        {
+            selectedAlloc.Spent += newAmount;
+            Db.BudgetAllocations.Update(selectedAlloc);
+        }
+
+        var tx = new Transaction
+        {
+            TransactionCode = $"TX-{nextNum}",
+            Description = newDescription.Trim(),
+            Type = newType,
+            BudgetAllocationId = newBudgetAllocationId > 0 ? newBudgetAllocationId : (int?)null,
+            BudgetLabel = null,
+            Amount = newAmount,
+            RecordedById = currentProfileId,
+            TransactionDate = DateTime.Today,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        Db.Transactions.Add(tx);
+        await Db.SaveChangesAsync();
+
+        allTransactions = await Db.Transactions
+            .Include(t => t.RecordedBy)
+            .Include(t => t.Allocation)
+            .OrderByDescending(t => t.TransactionDate)
+            .ThenByDescending(t => t.TransactionCode)
+            .ToListAsync();
+
+        isSaving = false;
+        showModal = false;
+    }
+
+    private string IncomeToggleStyle => newType == "Income"
+        ? "flex:1;padding:0.55rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;border-radius:8px;border:1.5px solid #1e8449;background:#eafaf1;color:#1e8449;cursor:pointer;"
+        : "flex:1;padding:0.55rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;border-radius:8px;border:1.5px solid #d1d9e6;background:#fff;color:#6b7c93;cursor:pointer;";
+
+    private string ExpenseToggleStyle => newType == "Expense"
+        ? "flex:1;padding:0.55rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;border-radius:8px;border:1.5px solid #c0392b;background:#fdedec;color:#c0392b;cursor:pointer;"
+        : "flex:1;padding:0.55rem;font-family:'Inter',sans-serif;font-size:0.84rem;font-weight:600;border-radius:8px;border:1.5px solid #d1d9e6;background:#fff;color:#6b7c93;cursor:pointer;";
+
+    private List<Transaction> filteredTransactions
+    {
+        get
+        {
+            var q = allTransactions.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(searchQuery))
+            {
+                var s = searchQuery.Trim().ToLower();
+                q = q.Where(t => t.Description.ToLower().Contains(s) || t.TransactionCode.ToLower().Contains(s) || (t.Allocation?.Name ?? "").ToLower().Contains(s));
+            }
+            if (!string.IsNullOrEmpty(typeFilter)) q = q.Where(t => t.Type == typeFilter);
+            if (budgetFilter > 0) q = q.Where(t => t.BudgetAllocationId == budgetFilter);
+            return q.ToList();
+        }
+    }
+}

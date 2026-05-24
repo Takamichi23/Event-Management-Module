@@ -1,0 +1,108 @@
+@page "/ministry-head"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using CMIS.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<PageTitle>Dashboard — CMIS Portal</PageTitle>
+
+<div class="page-heading">
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-subtitle">Welcome back. Here's a summary of your ministry's activity.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#e8f4f8;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a5276" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Total Members</span>
+            <span class="stat-value">@totalMembers</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#eafaf1;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1e8449" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Total Income</span>
+            <span class="stat-value">$@totalIncome.ToString("N0")</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#fdedec;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c0392b" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Total Expenses</span>
+            <span class="stat-value">$@totalExpenses.ToString("N0")</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:#fef9e7;">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#d4ac0d" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        <div class="stat-info">
+            <span class="stat-label">Pending Proposals</span>
+            <span class="stat-value">@pendingProposals</span>
+        </div>
+    </div>
+</div>
+
+<div class="recent-section">
+    <h2 class="section-title">Recent Transactions</h2>
+    <div class="table-container">
+        <table class="simple-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th style="text-align:right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in recentTransactions)
+                {
+                    <tr>
+                        <td>@t.TransactionDate.ToString("M/d/yyyy")</td>
+                        <td>@t.Description</td>
+                        <td>@(t.Allocation?.Name ?? "—")</td>
+                        <td style="text-align:right;font-weight:700;color:@(t.Type == "Income" ? "#1e8449" : "#c0392b");">
+                            @(t.Type == "Income" ? "+" : "-")$@Math.Abs(t.Amount).ToString("N0")
+                        </td>
+                    </tr>
+                }
+                @if (!recentTransactions.Any())
+                {
+                    <tr><td colspan="4" style="text-align:center;color:#8e99a4;padding:2rem;">No transactions yet.</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <a href="/ministry-head/financial/transactions" class="view-all-link">View all transactions →</a>
+</div>
+
+@code {
+    private int totalMembers;
+    private decimal totalIncome;
+    private decimal totalExpenses;
+    private int pendingProposals;
+    private List<Transaction> recentTransactions = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        totalMembers = await Db.Profiles.CountAsync();
+        var txList = await Db.Transactions.ToListAsync();
+        totalIncome = txList.Where(t => t.Type == "Income").Sum(t => t.Amount);
+        totalExpenses = txList.Where(t => t.Type == "Expense").Sum(t => t.Amount);
+        pendingProposals = await Db.BudgetProposals.CountAsync(p => p.Status == "Pending");
+        recentTransactions = await Db.Transactions
+            .OrderByDescending(t => t.TransactionDate)
+            .Take(5)
+            .ToListAsync();
+    }
+}

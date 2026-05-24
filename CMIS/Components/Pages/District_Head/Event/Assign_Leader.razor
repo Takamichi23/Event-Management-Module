@@ -1,0 +1,95 @@
+@using CMIS.Models
+@using CMIS.Services
+@inject DistrictEventService DistrictEventService
+
+<div class="modal-overlay" style="z-index:1500;">
+    <div class="modal-card" style="width:90%; max-width:600px; padding:0; overflow:hidden;">
+        <div style="background:#062b63; padding:24px 32px; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; font-size:20px; font-weight:700;">Assign District Leader</h3>
+            <button @onclick="OnClose" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">&times;</button>
+        </div>
+        
+        <div style="padding:32px;">
+            <div style="margin-bottom:24px;">
+                <label style="display:block; font-size:14px; font-weight:700; color:#062b63; margin-bottom:12px;">Search Leader Name</label>
+                <div style="position:relative;">
+                    <i class="fas fa-search" style="position:absolute; left:16px; top:50%; transform:translateY(-50%); color:#94a3b8; font-size:16px;"></i>
+                    <input type="text" @bind="searchQuery" @bind:event="oninput" placeholder="Search for a district leader..." style="width:100%; padding:12px 12px 12px 48px; border:1px solid #e2e8f0; border-radius:12px; outline:none; font-size:14px; transition:all 0.2s; background:#f8fafc;" onfocus="this.style.borderColor='#062b63'; this.style.boxShadow='0 0 0 4px rgba(6,43,99,0.05)';" onblur="this.style.borderColor='#e2e8f0'; this.style.boxShadow='none';" />
+                </div>
+            </div>
+
+            <div style="max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:12px;">
+                @if (FilteredLeaders == null || !FilteredLeaders.Any())
+                {
+                    <div style="padding:40px; text-align:center; color:#64748b; font-size:14px;">
+                        <i class="fas fa-user-slash" style="font-size:24px; margin-bottom:12px; display:block;"></i>
+                        No Members found.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var leader in FilteredLeaders)
+                    {
+                        <div style="padding:16px 20px; border-bottom:1px solid #f1f5f9; display:flex; align-items:center; gap:16px; cursor:pointer; background:@(selectedLeaderId == leader.ProfileId ? "#f0f9ff" : "transparent"); transition:all 0.2s;" @onclick="() => SelectLeader(leader)">
+                            <div style="width:44px; height:44px; border-radius:50%; background:#062b63; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:18px;">
+                                @leader.FirstName[0]
+                            </div>
+                            <div style="flex:1;">
+                                <div style="font-weight:700; color:#0f172a;">@leader.FirstName @leader.LastName</div>
+                                <div style="font-size:12px; color:#64748b;">@leader.ContactNumber</div>
+                            </div>
+                            @if (selectedLeaderId == leader.ProfileId)
+                            {
+                                <i class="fas fa-check-circle" style="color:#3b82f6; font-size:20px;"></i>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+
+        <div style="padding:24px 32px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:16px;">
+            <button class="action-btn" @onclick="OnClose" style="background:transparent; color:#64748b; font-weight:600; min-width:120px;">Cancel</button>
+            <button class="action-btn" @onclick="Assign" disabled="@(selectedLeaderId == 0)" style="background:#062b63; min-width:160px;">Assign Leader</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public DistrictEventModel DistrictEvent { get; set; } = default!;
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnAssigned { get; set; }
+
+    private List<Profile> allLeaders = new();
+    private string searchQuery = "";
+    private int selectedLeaderId = 0;
+    private string selectedLeaderName = "";
+
+    private IEnumerable<Profile> FilteredLeaders => allLeaders
+        .Where(l => string.IsNullOrWhiteSpace(searchQuery) || 
+                   (l.FirstName + " " + l.LastName).Contains(searchQuery, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        allLeaders = await DistrictEventService.GetAllMembersAsync();
+        if (DistrictEvent.AssignedLeaderId != null)
+        {
+            selectedLeaderId = DistrictEvent.AssignedLeaderId.Value;
+            selectedLeaderName = DistrictEvent.AssignedLeaderName ?? "";
+        }
+    }
+
+    private void SelectLeader(Profile leader)
+    {
+        selectedLeaderId = leader.ProfileId;
+        selectedLeaderName = $"{leader.FirstName} {leader.LastName}";
+    }
+
+    private async Task Assign()
+    {
+        DistrictEvent.AssignedLeaderId = selectedLeaderId;
+        DistrictEvent.AssignedLeaderName = selectedLeaderName;
+        await DistrictEventService.UpdateEventAsync(DistrictEvent);
+        await OnAssigned.InvokeAsync();
+    }
+}

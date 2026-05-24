@@ -1,0 +1,543 @@
+@page "/national-leader/event-details/{Id}"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.BODEventService BODEventService
+@inject NavigationManager NavManager
+
+@if (eventModel == null)
+{
+    <div style="padding:40px; text-align:center;">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p style="margin-top:16px; color:#64748b;">Loading national event details...</p>
+    </div>
+}
+else
+{
+    <div class="details-container">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+            <button class="back-btn" @onclick="GoBack" style="margin:0;">
+                <i class="fas fa-arrow-left"></i> My Events
+            </button>
+            <div style="display:flex; gap:12px;">
+                @if (!isEditing)
+                {
+                    <button class="action-btn" style="background:#fff; color:#062b63; border:1px solid #062b63;" @onclick="() => isEditing = true">
+                        <i class="fas fa-edit"></i> Edit Details
+                    </button>
+                }
+                else
+                {
+                    <button class="action-btn" style="background:#f1f5f9; color:#475569; border:1px solid #e2e8f0;" @onclick="() => isEditing = false">Cancel</button>
+                    <button class="action-btn btn-attendance" @onclick="SaveChanges">Save Changes</button>
+                }
+            </div>
+        </div>
+
+        <div class="hero-card">
+            <div style="position:relative;">
+                <img src="@(!string.IsNullOrEmpty(eventModel.ImageUrl) ? eventModel.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80")" class="hero-img" />
+                @{
+                    var statusInfo = GetStatusColor(eventModel.Status);
+                }
+                <div style="position:absolute; top:16px; right:16px; background:@statusInfo.bg; color:@statusInfo.text; padding:6px 16px; border-radius:20px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; border: 1px solid @statusInfo.border; box-shadow:0 4px 6px rgba(0,0,0,0.1); z-index:10;">
+                    <div style="width:8px; height:8px; border-radius:50%; background:@statusInfo.text;"></div> @eventModel.Status
+                </div>
+            </div>
+            
+            <div class="hero-content">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:20px;">
+                    <div style="flex:1; min-width:300px;">
+                        @if (!isEditing)
+                        {
+                            <h2 class="hero-title">@eventModel.Title</h2>
+                            <div class="hero-meta">
+                                <div><i class="fas fa-hand-holding-heart"></i> @eventModel.Category</div>
+                                <div><i class="far fa-calendar-alt"></i> @eventModel.Date.ToString("MMMM dd, yyyy") - @eventModel.StartTime.ToString("hh:mm tt") - @eventModel.EndTime.ToString("hh:mm tt")</div>
+                                <div><i class="fas fa-map-marker-alt"></i> @eventModel.Venue</div>
+                            </div>
+                            <div class="hero-about">
+                                <h4>About Event</h4>
+                                <p style="margin:0;">@eventModel.Description</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="display:flex; flex-direction:column; gap:16px;">
+                                <input type="text" class="form-input" @bind="eventModel.Title" placeholder="Event Title" style="font-size:24px; font-weight:800;" />
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                                    <input type="date" class="form-input" @bind="eventModel.Date" />
+                                    <input type="text" class="form-input" @bind="eventModel.Venue" placeholder="Venue" />
+                                </div>
+                                <textarea class="form-input" @bind="eventModel.Description" placeholder="Description" style="min-height:100px;"></textarea>
+                            </div>
+                        }
+                    </div>
+                    
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                        @if (eventModel.Status == "Published" || eventModel.Status == "Ended")
+                        {
+                            <button class="action-btn btn-attendance" style="min-width: 160px;" @onclick="NavigateToAttendance"><i class="fas fa-user-check"></i> Attendance</button>
+                            @if (!eventModel.IsReportGenerated)
+                            {
+                                <button class="action-btn btn-report" style="min-width: 180px;" @onclick="OpenReportPreview"><i class="far fa-file-alt"></i> Generate Report</button>
+                            }
+                            else
+                            {
+                                <button class="action-btn" style="min-width: 180px; background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0;" disabled><i class="fas fa-check-double"></i> Generated</button>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @if (showReportPreview)
+        {
+            <div class="modal-overlay" style="z-index:1100;">
+                <div class="modal-card" style="width:90%; max-width:600px; padding:0; overflow:hidden;">
+                    <div style="background:#062b63; padding:24px 32px; color:#fff; display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; font-size:20px; font-weight:700;">National Event Report Preview</h3>
+                        <button @onclick="CloseReportPreview" style="background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;">&times;</button>
+                    </div>
+                    
+                    <div style="padding:32px; overflow-y:auto; max-height:70vh;">
+                        <div style="margin-bottom:24px; text-align:center;">
+                            <h4 style="margin:0 0 4px 0; font-size:22px; color:#062b63; font-weight:700;">@eventModel.Title</h4>
+                            <span style="font-size:14px; color:#64748b; font-weight:500;">@eventModel.Date.ToString("MMMM dd, yyyy")</span>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:24px;">
+                            <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; text-align:center;">
+                                <i class="fas fa-users" style="color:#062b63; font-size:20px; margin-bottom:8px;"></i>
+                                <span style="display:block; font-size:24px; font-weight:800; color:#062b63;">@eventModel.AttendanceCount</span>
+                                <span style="font-size:12px; color:#64748b; font-weight:600;">Total Attendees</span>
+                            </div>
+                            <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; text-align:center;">
+                                <i class="fas fa-peso-sign" style="color:#10b981; font-size:20px; margin-bottom:8px;"></i>
+                                <span style="display:block; font-size:24px; font-weight:800; color:#062b63;">₱@eventModel.TotalEstimatedBudget.ToString("N0")</span>
+                                <span style="font-size:12px; color:#64748b; font-weight:600;">Budget Spent</span>
+                            </div>
+                        </div>
+
+                        <div style="margin-bottom:24px;">
+                            <label style="display:block; font-size:14px; font-weight:700; color:#062b63; margin-bottom:8px;">Report Notes</label>
+                            <textarea @bind="eventModel.ReportNotes" style="width:100%; min-height:120px; padding:12px; border:1px solid #cbd5e1; border-radius:12px; outline:none; font-size:14px; line-height:1.6;" placeholder="Add any specific highlights, issues, or outcomes of the event..."></textarea>
+                        </div>
+
+                        <div style="display:flex; align-items:center; gap:12px; padding:16px; background:#ecfdf5; border-radius:12px; border:1px solid #a7f3d0;">
+                            <i class="fas fa-info-circle" style="color:#10b981;"></i>
+                            <p style="margin:0; font-size:13px; color:#065f46; font-weight:500;">This report is based on verified attendance data from the national tracker.</p>
+                        </div>
+                    </div>
+
+                    <div style="padding:24px 32px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:16px;">
+                        <button @onclick="CloseReportPreview" style="padding:12px 24px; border:none; background:transparent; color:#64748b; font-weight:600; cursor:pointer;">Cancel</button>
+                        <button @onclick="() => showReportConfirm = true" style="padding:12px 40px; border:none; background:#062b63; color:#fff; border-radius:12px; font-weight:700; cursor:pointer; box-shadow:0 4px 6px rgba(0,0,0,0.1);">Save Report</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (showReportConfirm)
+        {
+            <div class="modal-overlay" style="z-index:1200;">
+                <div class="modal-card" style="width:90%; max-width:400px; padding:32px; text-align:center;">
+                    <div style="width:64px; height:64px; background:#fef3c7; color:#d97706; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 20px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <h3 style="margin:0 0 12px 0; font-size:20px; font-weight:700; color:#062b63;">Confirm Report</h3>
+                    <p style="margin:0 0 24px 0; font-size:14px; color:#64748b; line-height:1.5;">Are you sure you want to finalize this report? Once generated, it cannot be edited again.</p>
+                    <div style="display:flex; gap:12px;">
+                        <button @onclick="() => showReportConfirm = false" style="flex:1; padding:12px; border:1px solid #e2e8f0; background:white; color:#64748b; border-radius:10px; font-weight:600; cursor:pointer;">Cancel</button>
+                        <button @onclick="SubmitReport" style="flex:1; padding:12px; border:none; background:#062b63; color:white; border-radius:10px; font-weight:600; cursor:pointer;">Generate</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <div class="section-card">
+            <h3 class="section-title">Event Information</h3>
+            <div class="form-grid">
+                <div class="form-label">Target Audience</div>
+                @if (!isEditing) {
+                    <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.TargetAudience</div>
+                } else {
+                    <input type="text" class="form-input" @bind="eventModel.TargetAudience" />
+                }
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Organizing Body</div>
+                @if (!isEditing) {
+                    <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.OrganizingBody</div>
+                } else {
+                    <input type="text" class="form-input" @bind="eventModel.OrganizingBody" />
+                }
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Expected Participants</div>
+                @if (!isEditing) {
+                    <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.ExpectedParticipants</div>
+                } else {
+                    <input type="number" class="form-input" @bind="eventModel.ExpectedParticipants" />
+                }
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Event Program Details</h3>
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Program Flow / Schedules</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Start</div>
+                            <div style="flex:1;">End</div>
+                            <div style="flex:2;">Title</div>
+                            <div style="width:20px;"></div>
+                        </div>
+                        @foreach(var item in eventModel.BODProgramSchedules)
+                        {
+                            <div class="sub-table-row">
+                                <input type="time" class="form-input" @bind="item.StartTime" style="flex:1;" />
+                                <input type="time" class="form-input" @bind="item.EndTime" style="flex:1;" />
+                                <input type="text" class="form-input" @bind="item.ProgramTitle" style="flex:2;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODProgramSchedules.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODProgramSchedules.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Time Slot</div>
+                            <div style="flex:2;">Program Title</div>
+                        </div>
+                        @if (eventModel.BODProgramSchedules.Any())
+                        {
+                            @foreach(var item in eventModel.BODProgramSchedules)
+                            {
+                                <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                    <div style="flex:1; font-weight:700; color:#062b63;">@item.StartTime.ToString("hh:mm tt") - @item.EndTime.ToString("hh:mm tt")</div>
+                                    <div style="flex:2; color:#1e293b;">@item.ProgramTitle</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No program schedules recorded.</div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Guests Speakers</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Name</div>
+                            <div style="flex:1;">Role</div>
+                            <div style="width:20px;"></div>
+                        </div>
+                        @foreach(var item in eventModel.BODGuests)
+                        {
+                            <div class="sub-table-row">
+                                <input type="text" class="form-input" @bind="item.FullName" style="flex:1;" />
+                                <input type="text" class="form-input" @bind="item.GuestType" style="flex:1;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODGuests.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODGuests.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Name</div>
+                            <div style="flex:1;">Type/Role</div>
+                        </div>
+                        @if (eventModel.BODGuests.Any())
+                        {
+                            @foreach(var item in eventModel.BODGuests)
+                            {
+                                <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                    <div style="flex:1; font-weight:600; color:#1e293b;">@item.FullName</div>
+                                    <div style="flex:1; color:#64748b;">@item.GuestType</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No guests listed.</div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Personnel Roles</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Name</div>
+                            <div style="flex:1;">Role</div>
+                            <div style="width:20px;"></div>
+                        </div>
+                        @foreach(var item in eventModel.BODPersonnel)
+                        {
+                            <div class="sub-table-row">
+                                <input type="text" class="form-input" @bind="item.FullName" style="flex:1;" />
+                                <input type="text" class="form-input" @bind="item.RoleName" style="flex:1;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODPersonnel.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODPersonnel.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:1;">Name</div>
+                            <div style="flex:1;">Role</div>
+                        </div>
+                        @if (eventModel.BODPersonnel.Any())
+                        {
+                            @foreach(var item in eventModel.BODPersonnel)
+                            {
+                                <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                    <div style="flex:1; font-weight:600; color:#1e293b;">@item.FullName</div>
+                                    <div style="flex:1; color:#64748b;">@item.RoleName</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No personnel assigned.</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Resources & Requirements</h3>
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Equipment</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        @foreach(var item in eventModel.BODEquipment)
+                        {
+                            <div class="sub-table-row">
+                                <input type="text" class="form-input" @bind="item.EquipmentName" style="flex:2;" />
+                                <input type="text" class="form-input" @bind="item.Remarks" style="flex:1;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODEquipment.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODEquipment.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (eventModel.BODEquipment.Any())
+                        {
+                            @foreach(var item in eventModel.BODEquipment)
+                            {
+                                <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                    <div style="flex:1; font-weight:600; color:#1e293b;">@item.EquipmentName</div>
+                                    <div style="flex:1; color:#64748b; font-size:13px;">@item.Remarks</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No equipment requirements.</div>
+                        }
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Transportation</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        @foreach(var item in eventModel.BODTransportation)
+                        {
+                            <div class="sub-table-row">
+                                <input type="text" class="form-input" @bind="item.VehicleType" style="flex:2;" />
+                                <input type="text" class="form-input" @bind="item.Remarks" style="flex:1;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODTransportation.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODTransportation.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (eventModel.BODTransportation.Any())
+                        {
+                            @foreach(var item in eventModel.BODTransportation)
+                            {
+                                <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                    <div style="flex:1; font-weight:600; color:#1e293b;">@item.VehicleType</div>
+                                    <div style="flex:1; color:#64748b; font-size:13px;">@item.Remarks</div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No transportation requirements.</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Financial Overview</h3>
+            <div class="form-grid">
+                <div class="form-label">Funding Type</div>
+                @if (!isEditing) {
+                    <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.FundingType</div>
+                } else {
+                    <input type="text" class="form-input" @bind="eventModel.FundingType" />
+                }
+            </div>
+            
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Expense Breakdown</div>
+                <div>
+                    @if (isEditing)
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:2;">Item</div>
+                            <div style="flex:1;">Cost</div>
+                            <div style="width:20px;"></div>
+                        </div>
+                        @foreach(var item in eventModel.BODExpenses)
+                        {
+                            <div class="sub-table-row">
+                                <input type="text" class="form-input" @bind="item.ItemName" style="flex:2;" />
+                                <input type="number" class="form-input" @bind="item.EstimatedCost" style="flex:1;" />
+                                <i class="far fa-trash-alt" style="color:#ef4444; cursor:pointer;" @onclick="()=>eventModel.BODExpenses.Remove(item)"></i>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                            <i class="fas fa-plus-circle" style="color:#0f172a; cursor:pointer; font-size:18px;" @onclick="()=>eventModel.BODExpenses.Add(new())"></i>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sub-table-header">
+                            <div style="flex:2;">Item</div>
+                            <div style="flex:1; text-align:right;">Estimated Cost</div>
+                        </div>
+                        @if (eventModel.BODExpenses.Any())
+                        {
+                            @foreach(var item in eventModel.BODExpenses)
+                            {
+                                <div class="sub-table-row" style="border-bottom:1px solid #f1f5f9; padding:8px 0;">
+                                    <div style="flex:2; color:#334155;">@item.ItemName</div>
+                                    <div style="flex:1; text-align:right; font-weight:700; color:#1e293b;">₱@item.EstimatedCost.ToString("N2")</div>
+                                </div>
+                            }
+                            <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:2px solid #f1f5f9;">
+                                <div style="text-align:right;">
+                                    <span style="font-size:12px; color:#64748b; font-weight:700; text-transform:uppercase;">Total Estimated Budget</span>
+                                    <div style="font-size:24px; font-weight:800; color:#062b63;">₱@eventModel.TotalEstimatedBudget.ToString("N2")</div>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No expenses recorded.</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private BODEventModel? eventModel;
+    private bool showReportPreview = false;
+    private bool showReportConfirm = false;
+    private bool isEditing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (int.TryParse(Id, out var intId))
+        {
+            eventModel = await BODEventService.GetEventByIdAsync(intId);
+        }
+    }
+
+    private void GoBack()
+    {
+        NavManager.NavigateTo("/national-leader/events");
+    }
+
+    private void NavigateToAttendance()
+    {
+        if (eventModel != null)
+        {
+            NavManager.NavigateTo($"/national-attendance/{eventModel.Id}");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (eventModel != null)
+        {
+            await BODEventService.UpdateEventAsync(eventModel);
+            isEditing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenReportPreview() => showReportPreview = true;
+    private void CloseReportPreview()
+    {
+        showReportPreview = false;
+        showReportConfirm = false;
+    }
+
+    private async Task SubmitReport()
+    {
+        if (eventModel != null)
+        {
+            eventModel.IsReportGenerated = true;
+            await BODEventService.UpdateEventAsync(eventModel);
+        }
+        showReportConfirm = false;
+        CloseReportPreview();
+        StateHasChanged();
+    }
+
+    private (string bg, string text, string border) GetStatusColor(string status) => status switch
+    {
+        "Planned Event" => ("#eef2ff", "#6366f1", "#c7d2fe"),
+        "Under Review" => ("#fffbeb", "#d97706", "#fef3c7"),
+        "Approved" => ("#ecfdf5", "#10b981", "#a7f3d0"),
+        "Published" => ("#eff6ff", "#3b82f6", "#bfdbfe"),
+        "Ended" => ("#f8fafc", "#475569", "#cbd5e1"),
+        "Rejected" => ("#fef2f2", "#ef4444", "#fecaca"),
+        "Rescheduled" => ("#f5f3ff", "#8b5cf6", "#ddd6fe"),
+        _ => ("#f8fafc", "#64748b", "#e2e8f0")
+    };
+}

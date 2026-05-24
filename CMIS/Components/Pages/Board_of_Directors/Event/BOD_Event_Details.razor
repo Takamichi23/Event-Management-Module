@@ -1,0 +1,385 @@
+@page "/bod-event-details/{Id}"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.BODEventService BODEventService
+@inject NavigationManager NavManager
+
+@if (eventModel == null)
+{
+    <div style="padding:40px; text-align:center;">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p style="margin-top:16px; color:#64748b;">Loading national event details...</p>
+    </div>
+}
+else
+{
+    <div class="details-container">
+        <button class="back-btn" @onclick="GoBack">
+            <i class="fas fa-arrow-left"></i> National Events
+        </button>
+
+        <div class="hero-card">
+            <div style="position:relative;">
+                <img src="@(!string.IsNullOrEmpty(eventModel.ImageUrl) ? eventModel.ImageUrl : "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80")" class="hero-img" />
+                @{
+                    var statusInfo = GetStatusColor(eventModel.Status);
+                }
+                <div style="position:absolute; top:16px; right:16px; background:@statusInfo.bg; color:@statusInfo.text; padding:6px 16px; border-radius:20px; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; border: 1px solid @statusInfo.border; box-shadow:0 4px 6px rgba(0,0,0,0.1); z-index:10;">
+                    <div style="width:8px; height:8px; border-radius:50%; background:@statusInfo.text;"></div> @eventModel.Status
+                </div>
+            </div>
+            
+            <div class="hero-content">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:20px;">
+                    <div style="flex:1; min-width:300px;">
+                        <h2 class="hero-title">@eventModel.Title</h2>
+                        <div class="hero-meta">
+                            <div><i class="fas fa-hand-holding-heart"></i> @eventModel.Category</div>
+                            <div><i class="far fa-calendar-alt"></i> @eventModel.Date.ToString("MMMM dd, yyyy") - @eventModel.StartTime.ToString("hh:mm tt") - @eventModel.EndTime.ToString("hh:mm tt")</div>
+                            <div><i class="fas fa-map-marker-alt"></i> @eventModel.Venue</div>
+                        </div>
+                        <div class="hero-about">
+                            <h4>About Event</h4>
+                            <p style="margin:0;">@eventModel.Description</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                        @if (eventModel.Status == "Published")
+                        {
+                            <button class="action-btn btn-attendance" style="min-width: 160px;" @onclick="() => showParticipantsModal = true"><i class="fas fa-users"></i> View Participants</button>
+                        }
+                        @if (eventModel.Status != "Published" && eventModel.Status != "Approved" && eventModel.Status != "Ended")
+                        {
+                            <button class="action-btn btn-edit" style="min-width: 140px;" @onclick="EditEvent"><i class="far fa-edit"></i> Edit Event</button>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Event Information</h3>
+            <div class="form-grid">
+                <div class="form-label">Target Audience</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.TargetAudience</div>
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Organizing Body</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.OrganizingBody</div>
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Expected Participants</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.ExpectedParticipants</div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Event Program Details</h3>
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Program Flow / Schedules</div>
+                <div>
+                    <div class="sub-table-header">
+                        <div style="flex:1;">Time Slot</div>
+                        <div style="flex:2;">Program Title</div>
+                    </div>
+                    @if (eventModel.BODProgramSchedules.Any())
+                    {
+                        @foreach(var item in eventModel.BODProgramSchedules)
+                        {
+                            <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                <div style="flex:1; font-weight:700; color:#062b63;">@item.StartTime.ToString("hh:mm tt") - @item.EndTime.ToString("hh:mm tt")</div>
+                                <div style="flex:2; color:#1e293b;">@item.ProgramTitle</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No program schedules recorded.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Guests Speakers</div>
+                <div>
+                    <div class="sub-table-header">
+                        <div style="flex:1;">Name</div>
+                        <div style="flex:1;">Type/Role</div>
+                    </div>
+                    @if (eventModel.BODGuests.Any())
+                    {
+                        @foreach(var item in eventModel.BODGuests)
+                        {
+                            <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                <div style="flex:1; font-weight:600; color:#1e293b;">@item.FullName</div>
+                                <div style="flex:1; color:#64748b;">@item.GuestType</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No guests listed.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Personnel Roles</div>
+                <div>
+                    <div class="sub-table-header">
+                        <div style="flex:1;">Name</div>
+                        <div style="flex:1;">Role</div>
+                    </div>
+                    @if (eventModel.BODPersonnel.Any())
+                    {
+                        @foreach(var item in eventModel.BODPersonnel)
+                        {
+                            <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                <div style="flex:1; font-weight:600; color:#1e293b;">@item.FullName</div>
+                                <div style="flex:1; color:#64748b;">@item.RoleName</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No personnel assigned.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Resources & Requirements</h3>
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Equipment</div>
+                <div>
+                    @if (eventModel.BODEquipment.Any())
+                    {
+                        @foreach(var item in eventModel.BODEquipment)
+                        {
+                            <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                <div style="flex:1; font-weight:600; color:#1e293b;">@item.EquipmentName</div>
+                                <div style="flex:1; color:#64748b; font-size:13px;">@item.Remarks</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No equipment requirements.</div>
+                    }
+                </div>
+            </div>
+
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Transportation</div>
+                <div>
+                    @if (eventModel.BODTransportation.Any())
+                    {
+                        @foreach(var item in eventModel.BODTransportation)
+                        {
+                            <div class="sub-table-row" style="background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0; margin-bottom:8px;">
+                                <div style="flex:1; font-weight:600; color:#1e293b;">@item.VehicleType</div>
+                                <div style="flex:1; color:#64748b; font-size:13px;">@item.Remarks</div>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No transportation requirements.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Financial Overview</h3>
+            <div style="background:#f8fafc; border-radius:16px; padding:24px; margin-bottom:24px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:32px;">
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Funding Type</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">@eventModel.FundingType</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Target Participants</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">@eventModel.ExpectedNumberOfParticipants</span>
+                </div>
+                <div>
+                    <span style="display:block; font-size:12px; color:#94a3b8; font-weight:700; text-transform:uppercase; margin-bottom:8px;">@(eventModel.FundingType == "Ticketed Event" ? "Ticket Price" : "Budget per Person")</span>
+                    <span style="font-size:16px; font-weight:700; color:#0f172a;">
+                        ₱@(eventModel.FundingType == "Ticketed Event" ? eventModel.TicketedPrice.ToString("N2") : eventModel.AllocatedBudgetPerPerson.ToString("N2"))
+                    </span>
+                </div>
+            </div>
+            
+            <div class="form-grid" style="align-items:flex-start;">
+                <div class="form-label" style="padding-top:10px;">Expense Breakdown</div>
+                <div>
+                    <div class="sub-table-header">
+                        <div style="flex:2;">Item</div>
+                        <div style="flex:1; text-align:right;">Estimated Cost</div>
+                    </div>
+                    @if (eventModel.BODExpenses.Any())
+                    {
+                        @foreach(var item in eventModel.BODExpenses)
+                        {
+                            <div class="sub-table-row" style="border-bottom:1px solid #f1f5f9; padding:8px 0;">
+                                <div style="flex:2; color:#334155;">@item.ItemName</div>
+                                <div style="flex:1; text-align:right; font-weight:700; color:#1e293b;">₱@item.EstimatedCost.ToString("N2")</div>
+                            </div>
+                        }
+                        <div style="display:flex; justify-content:flex-end; margin-top:16px; padding-top:16px; border-top:2px solid #f1f5f9;">
+                            <div style="text-align:right;">
+                                <span style="font-size:12px; color:#64748b; font-weight:700; text-transform:uppercase;">Total Estimated Budget</span>
+                                <div style="font-size:24px; font-weight:800; color:#062b63;">₱@eventModel.TotalEstimatedBudget.ToString("N2")</div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="padding:16px; text-align:center; color:#94a3b8; font-style:italic;">No expenses recorded.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="section-card">
+            <h3 class="section-title">Approval Details</h3>
+            <div class="form-grid">
+                <div class="form-label">Prepared By</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.PreparedBy</div>
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Date Prepared</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.DatePrepared?.ToString("MMM dd, yyyy")</div>
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Endorsed By</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.EndorsedBy</div>
+            </div>
+            <div class="form-grid">
+                <div class="form-label">Approved By</div>
+                <div class="form-input" style="background:#f8fafc; border-color:#e2e8f0; color:#1e293b; font-weight:600;">@eventModel.ApprovedBy</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Participants Modal -->
+    @if (showParticipantsModal)
+    {
+        <div class="modal-overlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(6, 43, 99, 0.4); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; z-index:2000; padding:20px;">
+            <div class="modal-card" style="background:#fff; border-radius:24px; width:100%; max-width:1000px; height:90vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,0.2);">
+                <div style="background:#062b63; padding:40px; color:#fff; position:relative;">
+                    <button @onclick="() => showParticipantsModal = false" style="position:absolute; top:24px; right:24px; background:transparent; border:none; color:#fff; font-size:24px; cursor:pointer;"><i class="fas fa-times"></i></button>
+                    <div style="margin-bottom:32px;">
+                        <h2 style="font-size:32px; font-weight:800; margin:0 0 8px 0;">@eventModel.Title</h2>
+                        <p style="margin:0; opacity:0.8; font-size:16px; font-weight:500;">@eventModel.Description</p>
+                    </div>
+                    <div style="display:flex; gap:16px; margin-bottom:32px;">
+                        <span style="background:#3b82f6; color:#fff; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px;"><i class="fas fa-play-circle"></i> In Progress</span>
+                        <span style="background:rgba(255,255,255,0.1); color:#fff; padding:6px 16px; border-radius:20px; font-size:13px; font-weight:700;">National</span>
+                        <span style="color:rgba(255,255,255,0.8); font-size:14px; display:flex; align-items:center; gap:8px;"><i class="far fa-calendar-alt"></i> @eventModel.Date.ToString("MMMM dd, yyyy") - @eventModel.StartTime.ToString("hh:mm tt") - @eventModel.EndTime.ToString("hh:mm tt")</span>
+                    </div>
+
+                    <!-- Mini Dashboards -->
+                    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:20px;">
+                        <div style="background:rgba(255,255,255,0.1); padding:24px; border-radius:16px; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><span style="font-size:13px; font-weight:600; opacity:0.8;">Registered Participants</span><i class="fas fa-users" style="opacity:0.6;"></i></div>
+                            <div style="font-size:36px; font-weight:800;">@participants.Count</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1); padding:24px; border-radius:16px; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><span style="font-size:13px; font-weight:600; opacity:0.8;">Walk In</span><i class="fas fa-walking" style="opacity:0.6;"></i></div>
+                            <div style="font-size:36px; font-weight:800;">@participants.Count(p => p.IsWalkIn)</div>
+                        </div>
+                        <div style="background:rgba(255,255,255,0.1); padding:24px; border-radius:16px; backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,0.1);">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:12px;"><span style="font-size:13px; font-weight:600; opacity:0.8;">Attendance Rate</span><i class="fas fa-chart-line" style="opacity:0.6;"></i></div>
+                            <div style="font-size:36px; font-weight:800;">90%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="flex:1; padding:40px; overflow-y:auto; background:#f8fafc;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:24px;">
+                        <h4 style="font-size:18px; font-weight:700; color:#062b63; margin:0;">Registered Participants</h4>
+                        <button style="background:transparent; border:none; color:#062b63; font-size:20px; cursor:pointer;"><i class="fas fa-sync-alt"></i></button>
+                    </div>
+
+                    <div style="background:#fff; border-radius:16px; overflow:hidden; border:1px solid #e2e8f0;">
+                        <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                            <thead>
+                                <tr style="background:#f1f5f9; text-align:left;">
+                                    <th style="padding:16px; color:#475569; font-weight:700;">Fullname</th>
+                                    <th style="padding:16px; color:#475569; font-weight:700;">Date of Birth</th>
+                                    <th style="padding:16px; color:#475569; font-weight:700;">Email</th>
+                                    <th style="padding:16px; color:#475569; font-weight:700;">Contact no.</th>
+                                    <th style="padding:16px; color:#475569; font-weight:700; text-align:center;">Walk In</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach(var p in participants)
+                                {
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:16px; color:#1e293b; font-weight:600;">@p.Name</td>
+                                        <td style="padding:16px; color:#64748b;">@p.DOB</td>
+                                        <td style="padding:16px; color:#64748b;">@p.Email</td>
+                                        <td style="padding:16px; color:#64748b;">@p.Contact</td>
+                                        <td style="padding:16px; text-align:center;">
+                                            @if(p.IsWalkIn) { <i class="fas fa-check-circle" style="color:#22c55e; font-size:18px;"></i> }
+                                            else { <div style="width:18px; height:18px; border:2px solid #e2e8f0; border-radius:4px; margin:0 auto;"></div> }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Id { get; set; } = string.Empty;
+
+    private BODEventModel? eventModel;
+    private bool showParticipantsModal = false;
+
+    private List<Participant> participants = new()
+    {
+        new Participant { Name = "Hernandez, Roejon Kayne Paul Paz", DOB = "03-23-2005", Email = "hroejon@gmail.com", Contact = "09915394474", IsWalkIn = true },
+        new Participant { Name = "Galvan, Jhov Joshua Espiritu", DOB = "07-31-2004", Email = "jaejae@gmail.com", Contact = "09915394474", IsWalkIn = false },
+        new Participant { Name = "An, James Manuel Villar", DOB = "01-21-2006", Email = "jamesreid@gmail.com", Contact = "09915394474", IsWalkIn = false },
+        new Participant { Name = "Saturius, Micheal Harvey", DOB = "04-23-2005", Email = "saturno@gmail.com", Contact = "09915394474", IsWalkIn = false },
+        new Participant { Name = "Abunda, Jethro", DOB = "05-27-2005", Email = "boyabunda@gmail.com", Contact = "09915394474", IsWalkIn = true }
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (int.TryParse(Id, out var intId))
+        {
+            eventModel = await BODEventService.GetEventByIdAsync(intId);
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/bod/events");
+
+    private void EditEvent() => NavManager.NavigateTo($"/bod-event-form/{eventModel?.Id}");
+
+    private (string bg, string text, string border) GetStatusColor(string status) => status switch
+    {
+        "Planned Event" => ("#f5f3ff", "#8b5cf6", "#ddd6fe"),
+        "Published" => ("#eff6ff", "#3b82f6", "#bfdbfe"),
+        "Completed" => ("#ecfdf5", "#10b981", "#a7f3d0"),
+        _ => ("#f8fafc", "#64748b", "#e2e8f0")
+    };
+
+    public class Participant
+    {
+        public string Name { get; set; } = "";
+        public string DOB { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Contact { get; set; } = "";
+        public bool IsWalkIn { get; set; }
+    }
+}

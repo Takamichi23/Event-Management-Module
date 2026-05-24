@@ -1,0 +1,80 @@
+@page "/ministry-head/membership"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Data
+@using CMIS.Models
+@using Microsoft.EntityFrameworkCore
+@inject ApplicationDbContext Db
+@rendermode InteractiveServer
+
+<PageTitle>Membership — CMIS Portal</PageTitle>
+
+<div class="page-heading">
+    <h1 class="page-title">Membership</h1>
+    <p class="page-subtitle">Manage church member profiles and ministry assignments.</p>
+</div>
+
+<div class="toolbar">
+    <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="search-input" placeholder="Search members..." @bind="searchQuery" @bind:event="oninput" />
+    </div>
+</div>
+
+<div class="table-container">
+    <table class="members-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Contact</th>
+                <th>Church</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in filteredProfiles)
+            {
+                <tr>
+                    <td style="font-weight:600;color:#0d2137;">@p.FirstName @p.LastName</td>
+                    <td style="color:#6b7c93;">@(p.ContactNumber ?? "—")</td>
+                    <td>@(p.Church?.ChurchName ?? "—")</td>
+                    <td>
+                        <span style="padding:0.2rem 0.55rem;border-radius:20px;font-size:0.72rem;font-weight:600;
+                              @(p.ProfileStatus == "Active" ? "background:#eafaf1;color:#1e8449;" : "background:#fdedec;color:#c0392b;")">
+                            @p.ProfileStatus
+                        </span>
+                    </td>
+                </tr>
+            }
+            @if (!filteredProfiles.Any())
+            {
+                <tr><td colspan="4" class="empty-state">No members found.</td></tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<Profile> allProfiles = new();
+    private string searchQuery = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        allProfiles = await Db.Profiles
+            .Include(p => p.Church)
+            .OrderBy(p => p.LastName).ThenBy(p => p.FirstName)
+            .ToListAsync();
+    }
+
+    private List<Profile> filteredProfiles
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(searchQuery)) return allProfiles;
+            var q = searchQuery.Trim().ToLower();
+            return allProfiles.Where(p =>
+                p.FirstName.ToLower().Contains(q) ||
+                p.LastName.ToLower().Contains(q) ||
+                (p.ContactNumber ?? "").Contains(q)).ToList();
+        }
+    }
+}

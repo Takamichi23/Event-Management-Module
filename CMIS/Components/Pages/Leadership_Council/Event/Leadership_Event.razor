@@ -1,0 +1,208 @@
+@page "/leadership/events"
+@layout CMIS.Components.Layout.DashboardLayout
+@using CMIS.Models
+@rendermode InteractiveServer
+@inject CMIS.Services.BODEventService BODEventService
+@inject NavigationManager NavManager
+
+<div style="padding: 40px; background: #f8fafc; min-height: 100vh; font-family: 'Inter', system-ui, sans-serif;">
+    <!-- Header -->
+    <header style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px;">
+        <div>
+            <h1 style="font-size: 32px; font-weight: 800; color: #0f172a; margin: 0 0 8px 0; letter-spacing: -0.5px;">Events & Programs</h1>
+            <p style="font-size: 14px; color: #64748b; margin: 0; line-height: 1.5;">Manage board-approved events, coordinate with districts, track progress, and view reports</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 20px;">
+            <div class="notif-bell" style="position: relative; cursor: pointer; color: #64748b; font-size: 20px;">
+                <i class="far fa-bell"></i>
+                <span class="notif-badge" style="position: absolute; top: -5px; right: -5px; background: #ef4444; color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 10px; font-weight: 700;">3</span>
+            </div>
+            <div class="profile-card" style="display: flex; align-items: center; gap: 12px; background: #fff; padding: 6px 16px; border-radius: 50px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=100&q=80" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;" />
+                <div class="profile-info" style="display: flex; flex-direction: column;">
+                    <span class="name" style="font-size: 14px; font-weight: 700; color: #0f172a;">Leadership Council</span>
+                    <span class="role" style="font-size: 12px; color: #64748b;">Coordinator</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Controls Row -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; gap: 24px; flex-wrap: wrap;">
+        <!-- Search Bar -->
+        <div style="position: relative; max-width: 450px; flex: 1; min-width: 280px;">
+            <i class="fas fa-search" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none;"></i>
+            <input type="text" placeholder="Search events..." @bind="searchText" @bind:event="oninput" style="width: 100%; padding: 12px 16px 12px 48px; border: 1px solid #cbd5e1; border-radius: 12px; font-size: 14px; color: #0f172a; outline: none; background: #fff; transition: all 0.2s; box-shadow: 0 1px 2px rgba(0,0,0,0.02);" />
+        </div>
+
+        <!-- Filter Segmented Tabs -->
+        <div style="display: flex; background: #fff; border: 1px solid #cbd5e1; border-radius: 14px; padding: 4px; gap: 2px; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02);">
+            <button @onclick='() => currentStatus = "All"' style="padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: @(currentStatus == "All" ? "#062b63" : "transparent"); color: @(currentStatus == "All" ? "#fff" : "#64748b");">All</button>
+            <button @onclick='() => currentStatus = "Planned"' style="padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: @(currentStatus == "Planned" ? "#062b63" : "transparent"); color: @(currentStatus == "Planned" ? "#fff" : "#64748b");">Planned</button>
+            <button @onclick='() => currentStatus = "In Progress"' style="padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: @(currentStatus == "In Progress" ? "#062b63" : "transparent"); color: @(currentStatus == "In Progress" ? "#fff" : "#64748b");">In Progress</button>
+            <button @onclick='() => currentStatus = "Completed"' style="padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: @(currentStatus == "Completed" ? "#062b63" : "transparent"); color: @(currentStatus == "Completed" ? "#fff" : "#64748b");">Completed</button>
+            <button @onclick='() => currentStatus = "Reports"' style="padding: 8px 16px; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; background: @(currentStatus == "Reports" ? "#062b63" : "transparent"); color: @(currentStatus == "Reports" ? "#fff" : "#64748b");">Reports</button>
+        </div>
+    </div>
+
+    <!-- Events Grid -->
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+        @if (!FilteredEvents.Any())
+        {
+            <div style="grid-column: 1 / -1; text-align: center; padding: 80px 40px; background: white; border-radius: 16px; border: 1px dashed #cbd5e1;">
+                <i class="far fa-folder-open" style="font-size: 48px; color: #cbd5e1; margin-bottom: 16px; display: block;"></i>
+                <h3 style="color: #64748b; font-weight: 600; margin: 0 0 8px 0;">No events found</h3>
+                <p style="color: #94a3b8; font-size: 14px; margin: 0;">Try adjusting your filters or search terms.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var ev in FilteredEvents)
+            {
+                var (statusClass, statusBg, statusColor, statusText, statusIcon) = GetStatusDisplay(ev);
+                int expected = ev.ExpectedParticipants;
+                int attendance = ev.AttendanceCount;
+                int rate = expected > 0 ? Math.Min(100, (int)Math.Round(attendance * 100.0 / expected)) : 0;
+                string barColor = (statusText == "Completed" || rate == 100) ? "#22c55e" : "#3b82f6";
+
+                <div @onclick="() => NavigateToDetails(ev.Id)" style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px; cursor: pointer; transition: all 0.2s; position: relative; box-shadow: 0 4px 6px rgba(0,0,0,0.01);" class="event-card-hover">
+                    <!-- Title & Chevron -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px;">
+                        <h3 style="font-size: 18px; font-weight: 700; color: #062b63; margin: 0; line-height: 1.3; flex: 1;">@ev.Title</h3>
+                        <i class="fas fa-chevron-right" style="color: #cbd5e1; font-size: 14px;"></i>
+                    </div>
+
+                    <!-- Description Snippet -->
+                    <p style="font-size: 14px; color: #64748b; margin: 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 42px;">
+                        @ev.Description
+                    </p>
+
+                    <!-- Badges -->
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <!-- Status Badge -->
+                        <span style="background: @statusBg; color: @statusColor; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+                            <i class="@statusIcon"></i> @statusText
+                        </span>
+                        <!-- Category/Scope Badge -->
+                        <span style="background: #f1f5f9; color: #475569; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;">
+                            @(ev.Category ?? "National")
+                        </span>
+                    </div>
+
+                    <!-- Attendance Rate Progress Bar -->
+                    <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 700; color: #64748b;">
+                            <span>Attendance Rate</span>
+                            <span>@rate%</span>
+                        </div>
+                        <div style="width: 100%; background: #e2e8f0; height: 6px; border-radius: 3px; overflow: hidden;">
+                            <div style="width: @rate%; background: @barColor; height: 100%; border-radius: 3px; transition: width 0.3s ease;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Footer Metas -->
+                    <div style="display: flex; gap: 20px; align-items: center; border-top: 1px solid #f1f5f9; padding-top: 16px; margin-top: auto;">
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; font-weight: 600;">
+                            <i class="far fa-calendar-alt"></i>
+                            <span>@ev.Date.ToString("MMM dd, yyyy")</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; color: #64748b; font-weight: 600;">
+                            <i class="fas fa-users"></i>
+                            <span>@ev.ExpectedParticipants.ToString("N0")</span>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<style>
+    .event-card-hover:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04) !important;
+        border-color: #062b63 !important;
+    }
+</style>
+
+@code {
+    private string currentStatus = "All";
+    private string searchText = "";
+    private List<BODEventModel> eventsList = new();
+
+    private IEnumerable<BODEventModel> FilteredEvents => eventsList
+        .Where(e => {
+            var now = DateTime.Now;
+            var eventStart = e.Date.Date.Add(e.StartTime.ToTimeSpan());
+            var eventEnd = e.Date.Date.Add(e.EndTime.ToTimeSpan());
+            if (eventEnd <= eventStart) eventEnd = eventEnd.AddDays(1);
+
+            // Determine status
+            string displayStatus = "Planned";
+            if (e.IsReportGenerated) displayStatus = "Reports";
+            else if (e.Status == "Ended" || now >= eventEnd) displayStatus = "Completed";
+            else if (e.Status == "In Progress" || (now >= eventStart && now < eventEnd)) displayStatus = "In Progress";
+
+            if (currentStatus == "All") return true;
+            if (currentStatus == "Planned") return displayStatus == "Planned";
+            if (currentStatus == "In Progress") return displayStatus == "In Progress";
+            if (currentStatus == "Completed") return displayStatus == "Completed";
+            if (currentStatus == "Reports") return displayStatus == "Reports";
+            return true;
+        })
+        .Where(e => string.IsNullOrWhiteSpace(searchText) || 
+                   (e.Title?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+                   (e.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false));
+
+    protected override async Task OnInitializedAsync()
+    {
+        await BODEventService.LoadEventsAsync();
+        eventsList = BODEventService.Events;
+        
+        // Auto-update event status based on time
+        var now = DateTime.Now;
+        foreach (var ev in eventsList.Where(e => !e.IsReportGenerated))
+        {
+            var eventStart = ev.Date.Date.Add(ev.StartTime.ToTimeSpan());
+            var eventEnd = ev.Date.Date.Add(ev.EndTime.ToTimeSpan());
+
+            if (eventEnd <= eventStart)
+            {
+                eventEnd = eventEnd.AddDays(1);
+            }
+
+            if ((ev.Status == "Published" || ev.Status == "In Progress") && now >= eventEnd)
+            {
+                ev.Status = "Ended";
+                await BODEventService.UpdateEventAsync(ev);
+            }
+        }
+    }
+
+    private void NavigateToDetails(int id) => NavManager.NavigateTo($"/leadership/event-details/{id}");
+
+    private (string cssClass, string bg, string color, string text, string icon) GetStatusDisplay(BODEventModel e)
+    {
+        var now = DateTime.Now;
+        var eventStart = e.Date.Date.Add(e.StartTime.ToTimeSpan());
+        var eventEnd = e.Date.Date.Add(e.EndTime.ToTimeSpan());
+        if (eventEnd <= eventStart) eventEnd = eventEnd.AddDays(1);
+
+        if (e.IsReportGenerated)
+        {
+            return ("reports", "#ecfdf5", "#047857", "Report Ready", "far fa-file-alt");
+        }
+        else if (e.Status == "Ended" || now >= eventEnd)
+        {
+            return ("completed", "#dcfce7", "#15803d", "Completed", "far fa-check-circle");
+        }
+        else if (e.Status == "In Progress" || (now >= eventStart && now < eventEnd))
+        {
+            return ("inprogress", "#eff6ff", "#1d4ed8", "In Progress", "far fa-play-circle");
+        }
+        else
+        {
+            return ("planned", "#faf5ff", "#7c3aed", "Planned", "far fa-clock");
+        }
+    }
+}

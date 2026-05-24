@@ -1,0 +1,499 @@
+/* =============================================
+   BUDGET PROPOSALS PAGE — Scoped Styles
+   ============================================= */
+
+/* Page Heading */
+.page-heading {
+    margin-bottom: 1.5rem;
+}
+
+.page-title {
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.65rem;
+    color: #0d2137;
+    margin: 0 0 0.3rem;
+}
+
+.page-subtitle {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.88rem;
+    color: #6b7c93;
+    margin: 0;
+}
+
+/* ---------- TAB BAR ---------- */
+.tab-bar {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e8ecf1;
+    margin-bottom: 1.25rem;
+}
+
+.tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.7rem 1.1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #6b7c93;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+}
+
+.tab:hover {
+    color: #0d2137;
+}
+
+.tab.active {
+    color: #0d2137;
+    border-bottom-color: #0d2137;
+}
+
+/* ---------- AUTHORITY BANNER ---------- */
+.authority-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    background: #fef9e7;
+    border: 1px solid #f9e79f;
+    border-radius: 10px;
+    margin-bottom: 1.25rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    color: #7d6608;
+}
+
+.authority-banner svg {
+    flex-shrink: 0;
+    color: #d4ac0d;
+}
+
+/* ---------- SUB TABS ---------- */
+.sub-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.sub-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7c93;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.sub-tab:hover {
+    background: #f0f4f8;
+    color: #0d2137;
+}
+
+.sub-tab.active {
+    background: #0d2137;
+    color: #ffffff;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    background: rgba(13, 33, 55, 0.15);
+    color: #0d2137;
+}
+
+.sub-tab.active .badge {
+    background: rgba(255,255,255,0.25);
+    color: #ffffff;
+}
+
+/* ---------- TOOLBAR ---------- */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.85rem;
+    background: #ffffff;
+    border: 1.5px solid #d1d9e6;
+    border-radius: 8px;
+    flex: 1;
+    min-width: 200px;
+    max-width: 400px;
+    transition: border-color 0.2s;
+}
+
+.search-box:focus-within {
+    border-color: #1a5276;
+}
+
+.search-box svg {
+    color: #8e99a4;
+    flex-shrink: 0;
+}
+
+.search-input {
+    border: none;
+    outline: none;
+    background: none;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.84rem;
+    color: #1a1a2e;
+    width: 100%;
+}
+
+.search-input::placeholder {
+    color: #b0bec5;
+}
+
+.status-filter {
+    padding: 0.55rem 0.85rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.84rem;
+    color: #2c3e50;
+    background: #ffffff;
+    border: 1.5px solid #d1d9e6;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+    min-width: 140px;
+}
+
+.status-filter:focus {
+    border-color: #1a5276;
+}
+
+.btn-new-proposal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+    padding: 0.6rem 1.2rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #ffffff;
+    background: #0d2137;
+    border: none;
+    border-radius: 8px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+    white-space: nowrap;
+}
+
+.btn-new-proposal:hover {
+    background: #163d5c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(13, 33, 55, 0.25);
+}
+
+/* ---------- TABLE ---------- */
+.table-container {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e8ecf1;
+    overflow-x: auto;
+}
+
+.proposals-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.84rem;
+}
+
+.proposals-table thead {
+    background: #f8fafc;
+}
+
+.proposals-table th {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: #6b7c93;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #e8ecf1;
+    white-space: nowrap;
+}
+
+.proposals-table td {
+    padding: 0.85rem 1rem;
+    color: #2c3e50;
+    border-bottom: 1px solid #f0f3f6;
+    vertical-align: middle;
+}
+
+.proposals-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.proposals-table tbody tr:hover {
+    background: #fafbfd;
+}
+
+/* Column styles */
+.col-id {
+    font-weight: 600;
+    color: #0d2137;
+    white-space: nowrap;
+}
+
+.col-purpose {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.purpose-title {
+    font-weight: 600;
+    color: #0d2137;
+}
+
+.purpose-ministry {
+    font-size: 0.75rem;
+    color: #8e99a4;
+}
+
+.level-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.65rem;
+    background: #1a5276;
+    color: #ffffff;
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.col-amount {
+    font-weight: 600;
+    color: #0d2137;
+    white-space: nowrap;
+}
+
+.col-submission {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    font-size: 0.78rem;
+}
+
+.submission-from {
+    font-weight: 600;
+    color: #2c3e50;
+}
+
+.submission-arrow {
+    color: #8e99a4;
+    font-size: 0.72rem;
+}
+
+/* Status badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+}
+
+.status-pending {
+    background: #fef9e7;
+    color: #b7950b;
+}
+.status-pending .status-dot { background: #d4ac0d; }
+
+.status-approved {
+    background: #eafaf1;
+    color: #1e8449;
+}
+.status-approved .status-dot { background: #27ae60; }
+
+.status-disapproved {
+    background: #fdedec;
+    color: #c0392b;
+}
+.status-disapproved .status-dot { background: #e74c3c; }
+
+/* Actions */
+.col-actions {
+    text-align: center;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #8e99a4;
+    padding: 4px;
+    border-radius: 6px;
+    transition: color 0.2s, background 0.2s;
+    display: inline-flex;
+}
+
+.action-btn:hover {
+    color: #0d2137;
+    background: #f0f4f8;
+}
+
+/* Empty state */
+.empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem !important;
+    color: #8e99a4;
+    font-style: italic;
+}
+
+/* =============================================
+   NEW PROPOSAL MODAL
+   ============================================= */
+
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(13, 33, 55, 0.45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 1rem;
+}
+
+.modal-card {
+    background: #ffffff; border-radius: 16px;
+    padding: 2rem 2rem 1.75rem;
+    width: 100%; max-width: 520px;
+    box-shadow: 0 20px 60px rgba(13,33,55,0.25);
+    display: flex; flex-direction: column; gap: 1.1rem;
+    max-height: 90vh; overflow-y: auto;
+}
+
+.modal-title {
+    font-family: 'Outfit', sans-serif; font-weight: 800;
+    font-size: 1.25rem; color: #0d2137; margin: 0;
+}
+
+.modal-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+}
+
+.modal-field { display: flex; flex-direction: column; gap: 0.35rem; }
+
+.modal-label {
+    font-family: 'Inter', sans-serif; font-size: 0.82rem;
+    font-weight: 600; color: #2c3e50;
+}
+
+.modal-input,
+.modal-select {
+    padding: 0.65rem 0.85rem;
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #1a1a2e;
+    background: #ffffff; border: 1.5px solid #d1d9e6; border-radius: 8px;
+    outline: none; width: 100%; transition: border-color 0.2s;
+    box-sizing: border-box;
+}
+
+.modal-input:focus, .modal-select:focus { border-color: #1a5276; }
+.modal-input::placeholder { color: #b0bec5; }
+.modal-textarea { resize: vertical; min-height: 72px; }
+
+.modal-view-value {
+    padding: 0.65rem 0.85rem;
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; color: #1a1a2e;
+    background: #f8fafc; border: 1.5px solid #e8ecf1; border-radius: 8px;
+}
+
+.modal-level-fixed {
+    padding: 0.65rem 0.85rem;
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600;
+    color: #1a5276; background: #f0f4f8; border: 1.5px solid #d1d9e6;
+    border-radius: 8px;
+}
+
+.modal-error {
+    font-family: 'Inter', sans-serif; font-size: 0.8rem;
+    color: #c0392b; margin: 0;
+}
+
+.modal-actions {
+    display: flex; justify-content: flex-end; gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.modal-btn-cancel {
+    padding: 0.65rem 1.4rem;
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 600;
+    color: #6b7c93; background: none; border: 1.5px solid #d1d9e6;
+    border-radius: 8px; cursor: pointer; transition: border-color 0.2s, color 0.2s;
+}
+.modal-btn-cancel:hover { border-color: #6b7c93; color: #2c3e50; }
+
+.modal-btn-save {
+    padding: 0.65rem 1.5rem;
+    font-family: 'Inter', sans-serif; font-size: 0.88rem; font-weight: 700;
+    color: #ffffff; background: #0d2137; border: none;
+    border-radius: 8px; cursor: pointer; transition: background 0.2s;
+}
+.modal-btn-save:hover:not(:disabled) { background: #163d5c; }
+.modal-btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 768px) {
+    .tab-bar {
+        overflow-x: auto;
+    }
+
+    .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-box {
+        max-width: 100%;
+    }
+
+    .btn-new-proposal {
+        margin-left: 0;
+        justify-content: center;
+    }
+
+    .page-title {
+        font-size: 1.35rem;
+    }
+}
